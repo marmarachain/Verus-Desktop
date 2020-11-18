@@ -11,7 +11,7 @@ const BYTES_PER_MB = 1000000
 module.exports = (api) => {      
   // Gets an address balance (z_getbalance), txCount and zTotalBalance are used 
   // to check if the cache needs to be cleared and re-built
-  api.native.get_addr_balance = async (coin, token, address, useCache, txCount = -1, zTotalBalance = -1) => {
+  api.native.get_addr_balance = async (coin, address, useCache, txCount = -1, zTotalBalance = -1) => {
     const cacheAddrBalanceResult = (result) => {
       const cacheSize = getObjBytes(api.native.cache);
 
@@ -65,7 +65,7 @@ module.exports = (api) => {
 
     return new Promise((resolve, reject) => {
       api.native
-        .callDaemon(coin, useGetAddrBalance ? "getaddressbalance" : "z_getbalance", [address], token)
+        .callDaemon(coin, useGetAddrBalance ? "getaddressbalance" : "z_getbalance", [address])
         .then(balance => {
           if (useGetAddrBalance) {
             balance = fromSats(balance.balance)
@@ -81,31 +81,6 @@ module.exports = (api) => {
         });
     });
   };
-
-  /*api.post('/native/get_transaction', (req, res, next) => {
-    const token = req.body.token;
-    const coin = req.body.chainTicker;
-    const txid = req.body.txid;
-    const compact = req.body.compact;
-
-    api.native.get_transaction(coin, token, txid, compact)
-    .then((txObj) => {
-      const retObj = {
-        msg: 'success',
-        result: txObj,
-      };
-  
-      res.end(JSON.stringify(retObj));  
-    })
-    .catch(error => {
-      const retObj = {
-        msg: 'error',
-        result: error.message,
-      };
-  
-      res.end(JSON.stringify(retObj));  
-    })
-  });*/
 
   return api;
 };

@@ -4,8 +4,13 @@ const semverCmp = require('semver-compare');
 const electrumMinVersionProtocolV1_4 = '1.9.0';
 
 module.exports = (api) => {
+  api.isKomodo = (network) => {
+    const net = network.toLowerCase()
+    return api.customKomodoNetworks[net] || isKomodoCoin(net)
+  }
+
   api.isZcash = (network) => {
-    if (isKomodoCoin(network)) {
+    if (api.isKomodo(network)) {
       network = 'kmd';
     }
 
@@ -41,8 +46,7 @@ module.exports = (api) => {
       coin = network.toUpperCase();
     }
 
-    if (isKomodoCoin(coin) ||
-        isKomodoCoin(coinUC)) {
+    if (api.isKomodo(coin)) {
       return api.electrumJSNetworks.kmd;
     } else {
       return api.electrumJSNetworks[network];
@@ -59,7 +63,7 @@ module.exports = (api) => {
     throw new Error(`${coin} is not a valid network.`)
   }
 
-  api.get('/electrum/servers', (req, res, next) => {
+  api.setGet('/electrum/servers', (req, res, next) => {
     if (req.query.abbr) { // (?) change
       let _electrumServers = {};
 
@@ -74,7 +78,7 @@ module.exports = (api) => {
         },
       };
 
-      res.end(JSON.stringify(retObj));
+      res.send(JSON.stringify(retObj));
     } else {
       const retObj = {
         msg: 'success',
@@ -83,48 +87,9 @@ module.exports = (api) => {
         },
       };
 
-      res.end(JSON.stringify(retObj));
+      res.send(JSON.stringify(retObj));
     }
   });
-
-  //TODO: Re-evauluate as POST or eliminate use of API token
-  /*
-  api.get('/electrum/coins/server/set', (req, res, next) => {
-    const _coin = req.query.coin.toLowerCase();
-
-    if (api.checkToken(req.query.token)) {
-      api.electrum.coinData[_coin].server = {
-        ip: req.query.address,
-        port: req.query.port,
-        proto: req.query.proto,
-      };
-
-      for (let key in api.electrumServers) {
-        if (key === _coin) {
-          api.electrumServers[key].address = req.query.address;
-          api.electrumServers[key].port = req.query.port;
-          api.electrumServers[key].proto = req.query.proto;
-          break;
-        }
-      }
-
-      // api.log(JSON.stringify(api.electrum.coinData[req.query.coin], null, '\t'), true);
-
-      const retObj = {
-        msg: 'success',
-        result: true,
-      };
-
-      res.end(JSON.stringify(retObj));
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
-  });*/
 
   api.getServerVersion = (port, ip, proto) => {
     const ecl = new api.electrumJSCore(
@@ -176,78 +141,6 @@ module.exports = (api) => {
     });
   };
 
-  //TODO: Re-evauluate as POST or eliminate use of API token
-  /*
-  api.get('/electrum/servers/test', (req, res, next) => {
-    if (api.checkToken(req.query.token)) {
-      async function _serverTest() {
-        const ecl = await api.ecl(null, {
-          port: req.query.port,
-          ip: req.query.address,
-          proto: req.query.proto,
-        });
-
-        ecl.connect();
-        ecl.serverVersion()
-        .then((serverData) => {
-          ecl.close();
-          api.log('serverData', 'spv.server.test');
-          api.log(serverData, 'spv.server,test');
-
-          if (serverData &&
-              typeof serverData === 'string' &&
-              serverData.indexOf('Electrum') > -1) {
-            const retObj = {
-              msg: 'success',
-              result: true,
-            };
-
-            res.end(JSON.stringify(retObj));
-          } else if (
-            serverData &&
-            typeof serverData === 'object'
-          ) {
-            for (let i = 0; i < serverData.length; i++) {
-              if (serverData[i].indexOf('Electrum') > -1) {
-                const retObj = {
-                  msg: 'success',
-                  result: true,
-                };
-
-                res.end(JSON.stringify(retObj));
-
-                break;
-                return true;
-              }
-            }
-
-            const retObj = {
-              msg: 'error',
-              result: false,
-            };
-
-            res.end(JSON.stringify(retObj));
-          } else {
-            const retObj = {
-              msg: 'error',
-              result: false,
-            };
-
-            res.end(JSON.stringify(retObj));
-          }
-        });
-      };
-      _serverTest();
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
-  });*/
-
   // remote api switch wrapper
   api.ecl = async function(network, customElectrum) {
     if (!network) {
@@ -282,34 +175,8 @@ module.exports = (api) => {
       if (api.electrumServers[network].proto === 'insight') {
         return api.insightJSCore(api.electrumServers[network]);
       } else {
-        if (api.appConfig.general.electrum.proxy) {
-          // TODO: protocol version check
-          return api.proxy(network, customElectrum);
-        } else {
-          const electrum = customElectrum ? {
-            port: customElectrum.port,
-            ip: customElectrum.ip,
-            proto: customElectrum.proto,
-          } : {
-            port: api.electrum.coinData[network] && api.electrum.coinData[network].server.port || _currentElectrumServer.port,
-            ip: api.electrum.coinData[network] && api.electrum.coinData[network].server.ip || _currentElectrumServer.ip,
-            proto: api.electrum.coinData[network] && api.electrum.coinData[network].server.proto || _currentElectrumServer.proto,
-          };
-
-          const IsElectrumProtocolV1_4 = await api.getServerVersion(
-            electrum.port,
-            electrum.ip,
-            electrum.proto
-          );
-          let _ecl = new api.electrumJSCore(
-            electrum.port,
-            electrum.ip,
-            electrum.proto,
-            api.appConfig.general.electrum.socketTimeout
-          );
-          if (IsElectrumProtocolV1_4) _ecl.setProtocolVersion('1.4');
-          return _ecl;
-        }
+        const ecl = await api.eclManager.getServer(network, customElectrum);
+        return ecl;
       }
     }
   }

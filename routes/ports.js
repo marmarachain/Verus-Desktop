@@ -47,15 +47,14 @@ const assetChainPorts = {
   OUR: 45672,
   RICK: 28223,
   MORTY: 63812,
-  VOTE2019: 45888,
   MTST3: 56141,
-  RFOX: 32269,
   ZEXO: 33970,
   LABS: 40265,
   DP: 28388,
-  VRSCTEST: 17845,
+  VRSCTEST: 18184,
   VRSC: 27486,
-  ZEC: 11192
+  ZEC: 11192,
+  VOTE2020: 44249
 };
 
 module.exports = assetChainPorts;

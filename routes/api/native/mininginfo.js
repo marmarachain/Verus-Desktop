@@ -2,9 +2,9 @@ const Promise = require('bluebird');
 const { standardizeMiningInfo } = require('../utils/standardization/standardization')
 
 module.exports = (api) => {    
-  api.native.get_mininginfo = (coin, token) => {
+  api.native.get_mininginfo = (coin) => {
     return new Promise((resolve, reject) => {      
-      api.native.callDaemon(coin, 'getmininginfo', [], token)
+      api.native.callDaemon(coin, 'getmininginfo', [])
       .then((mininginfo) => {
         resolve(standardizeMiningInfo(mininginfo))
       })
@@ -14,18 +14,17 @@ module.exports = (api) => {
     });
   };
 
-  api.post('/native/get_mininginfo', (req, res, next) => {
-    const token = req.body.token;
+  api.setPost('/native/get_mininginfo', (req, res, next) => {
     const coin = req.body.chainTicker;
 
-    api.native.get_mininginfo(coin, token)
+    api.native.get_mininginfo(coin)
     .then((mininginfo) => {
       const retObj = {
         msg: 'success',
         result: mininginfo,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
     .catch(error => {
       const retObj = {
@@ -33,7 +32,7 @@ module.exports = (api) => {
         result: error.message,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
   });
 

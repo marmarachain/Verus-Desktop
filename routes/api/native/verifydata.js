@@ -5,7 +5,6 @@ module.exports = (api) => {
    * Verifies a message signed by an identity or address
    * 
    * @param {String} coin The chainTicker of the coin that the ID is based on
-   * @param {String} token The current API token from the GUI
    * @param {String} address The identity or address that signed the message to verify
    * @param {String} message The message to verify
    * @param {String} signature The signature provided by the signer
@@ -14,7 +13,6 @@ module.exports = (api) => {
    */
   api.native.verify_message = (
     coin,
-    token,
     address,
     message,
     signature,
@@ -30,8 +28,7 @@ module.exports = (api) => {
             signature,
             message,
             checklatest
-          ],
-          token
+          ]
         )
       .then(verificationResult => {
         resolve(verificationResult)
@@ -46,7 +43,6 @@ module.exports = (api) => {
    * Verifies a hash signed by an identity or address
    * 
    * @param {String} coin The chainTicker of the coin that the ID is based on
-   * @param {String} token The current API token from the GUI
    * @param {String} address The identity or address that signed the message to verify
    * @param {String} hash The hash to verify
    * @param {String} signature The signature provided by the signer
@@ -55,7 +51,6 @@ module.exports = (api) => {
    */
   api.native.verify_hash = (
     coin,
-    token,
     address,
     hash,
     signature,
@@ -71,8 +66,7 @@ module.exports = (api) => {
             signature,
             hash,
             checklatest
-          ],
-          token
+          ]
         )
       .then(verificationResult => {
         resolve(verificationResult)
@@ -87,7 +81,6 @@ module.exports = (api) => {
    * Verifies a file signed by an identity or address
    * 
    * @param {String} coin The chainTicker of the coin that the ID is based on
-   * @param {String} token The current API token from the GUI
    * @param {String} address The identity or address that signed the file to verify
    * @param {String} file The file location of the file to verify
    * @param {String} signature The signature provided by the signer
@@ -96,7 +89,6 @@ module.exports = (api) => {
    */
   api.native.verify_file = (
     coin,
-    token,
     address,
     file,
     signature,
@@ -112,8 +104,7 @@ module.exports = (api) => {
             signature,
             file,
             checklatest
-          ],
-          token
+          ]
         )
       .then(verificationResult => {
         resolve(verificationResult)
@@ -124,10 +115,9 @@ module.exports = (api) => {
     });
   };
 
-  api.post('/native/verify_message', (req, res, next) => {
+  api.setPost('/native/verify_message', (req, res, next) => {
     const {
       chainTicker,
-      token,
       address,
       data,
       signature,
@@ -137,7 +127,6 @@ module.exports = (api) => {
     api.native
       .verify_message(
         chainTicker,
-        token,
         address,
         data,
         signature,
@@ -148,7 +137,7 @@ module.exports = (api) => {
           msg: "success",
           result: verificationResult
         };
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       })
       .catch(error => {
         const retObj = {
@@ -156,14 +145,13 @@ module.exports = (api) => {
           result: error.message
         };
 
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       });
   });
 
-  api.post('/native/verify_hash', (req, res, next) => {
+  api.setPost('/native/verify_hash', (req, res, next) => {
     const {
       chainTicker,
-      token,
       address,
       data,
       signature,
@@ -173,7 +161,6 @@ module.exports = (api) => {
     api.native
       .verify_hash(
         chainTicker,
-        token,
         address,
         data,
         signature,
@@ -184,7 +171,7 @@ module.exports = (api) => {
           msg: "success",
           result: verificationResult
         };
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       })
       .catch(error => {
         const retObj = {
@@ -192,14 +179,13 @@ module.exports = (api) => {
           result: error.message
         };
 
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       });
   });
 
-  api.post('/native/verify_file', (req, res, next) => {
+  api.setPost('/native/verify_file', (req, res, next) => {
     const {
       chainTicker,
-      token,
       address,
       data,
       signature,
@@ -209,7 +195,6 @@ module.exports = (api) => {
     api.native
       .verify_file(
         chainTicker,
-        token,
         address,
         data,
         signature,
@@ -221,7 +206,7 @@ module.exports = (api) => {
           result: verificationResult
         };
 
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       })
       .catch(error => {
         const retObj = {
@@ -229,7 +214,7 @@ module.exports = (api) => {
           result: error.message
         };
 
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       });
   });
 

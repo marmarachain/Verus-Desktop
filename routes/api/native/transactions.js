@@ -2,16 +2,17 @@ const Promise = require('bluebird');
 
 const PRIVATE_ADDRESSES = 1
 const PUBLIC_TRANSACTIONS = 0
+const NUM_BLOCK_INDEX = 2
 const MAX_TRANSACTIONS = 2147483647 // Max # of transactions
 
 module.exports = api => {
-  const getZTransactions = (coin, array, token) => {
+  const getZTransactions = (coin, array, currentHeight) => {
     let promiseArray = [];
     for (let i = 0; i < array.length; i++) {
       promiseArray.push(
         new Promise((resolve, reject) => {
           api.native
-            .get_transaction(coin, token, array[i].txid, true)
+            .get_transaction(coin, array[i].txid, true, currentHeight)
             .then(__json => {
               resolve(__json);
             });
@@ -21,7 +22,7 @@ module.exports = api => {
     return Promise.all(promiseArray);
   };
 
-  const getZTransactionGroups = (coin, array, results, token) => {
+  const getZTransactionGroups = (coin, array, results, currentHeight) => {
     let txInputGroups = [{ coin: coin, group: array.slice(0, 100) }];
     let numCounted = txInputGroups[0].group.length;
 
@@ -35,7 +36,7 @@ module.exports = api => {
 
     return txInputGroups.reduce((p, a) => {
       return p.then(chainResults => {
-        return getZTransactions(a.coin, a.group, token).then(txGroup => {
+        return getZTransactions(a.coin, a.group, currentHeight).then(txGroup => {
           return chainResults.concat(txGroup);
         });
       });
@@ -44,26 +45,30 @@ module.exports = api => {
 
   api.native.get_transactions = (
     coin,
-    token,
     includePrivate,
     maxPubTransactions = MAX_TRANSACTIONS
   ) => {
     let privateAddresses = [];
     let transactions = [];
+    let currentHeight = null
 
     return new Promise((resolve, reject) => {
       let transactionPromises = [
         api.native.callDaemon(
           coin,
           "listtransactions",
-          ["*", maxPubTransactions],
-          token
+          ["*", maxPubTransactions]
         )
       ];
-      if (includePrivate)
+      if (includePrivate) {
         transactionPromises.push(
-          api.native.callDaemon(coin, "z_listaddresses", [], token)
+          api.native.callDaemon(coin, "z_listaddresses", [])
         );
+        transactionPromises.push(
+          api.native.callDaemon(coin, "getinfo", [])
+        );
+      }
+        
 
       Promise.all(transactionPromises)
         .then(jsonResults => {
@@ -83,6 +88,8 @@ module.exports = api => {
               });
             } else if (index === PRIVATE_ADDRESSES) {
               privateAddresses = result;
+            } else if (index === NUM_BLOCK_INDEX) {
+              currentHeight = result.longestchain
             }
           });
 
@@ -91,8 +98,7 @@ module.exports = api => {
               return api.native.callDaemon(
                 coin,
                 "z_listreceivedbyaddress",
-                [address, 0],
-                token
+                [address, 0]
               );
             })
           );
@@ -111,7 +117,7 @@ module.exports = api => {
             .flat();
 
           return privateTxs.length > 0
-            ? getZTransactionGroups(coin, privateTxs, [privateTxs], token)
+            ? getZTransactionGroups(coin, privateTxs, [privateTxs], currentHeight)
             : [[]];
         })
         .then(gottenTransactionsArray => {
@@ -130,21 +136,20 @@ module.exports = api => {
     });
   };
 
-  api.post("/native/get_transactions", (req, res, next) => {
-    const token = req.body.token;
+  api.setPost("/native/get_transactions", (req, res, next) => {
     const includePrivate = req.body.includePrivate;
     const maxPubTransactions = req.body.maxPubTransactions;
     const coin = req.body.chainTicker;
 
     api.native
-      .get_transactions(coin, token, includePrivate, maxPubTransactions)
+      .get_transactions(coin, includePrivate, maxPubTransactions)
       .then(transactions => {
         const retObj = {
           msg: "success",
           result: transactions
         };
 
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       })
       .catch(error => {
         const retObj = {
@@ -152,7 +157,7 @@ module.exports = api => {
           result: error.message
         };
 
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       });
   });
 

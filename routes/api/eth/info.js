@@ -1,5 +1,5 @@
 module.exports = (api) => {  
-  api.get('/eth/get_info', (req, res, next) => {
+  api.setGet('/eth/get_info', (req, res, next) => {
     const coin = req.query.chainTicker;
     let retObj = {}
     
@@ -23,7 +23,7 @@ module.exports = (api) => {
       }
     }
     
-    res.end(JSON.stringify(retObj));  
+    res.send(JSON.stringify(retObj));  
   });
 
   api.eth.get_info = (coin = 'ETH') => {

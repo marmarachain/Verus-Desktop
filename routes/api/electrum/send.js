@@ -7,6 +7,20 @@ const { fromSats, toSats } = require('agama-wallet-lib/src/utils');
 
 // speed: slow, average, fast
 module.exports = (api) => {  
+  api.maxSpendBalance = (utxoList, fee) => {
+    let maxSpendBalance = 0;
+
+    for (let i = 0; i < utxoList.length; i++) {
+      maxSpendBalance += Number(utxoList[i].value);
+    }
+
+    if (fee) {
+      return Number(maxSpendBalance) - Number(fee);
+    } else {
+      return maxSpendBalance;
+    }
+  }
+
   api.electrum.createPreflightObj = (
     chainTicker,
     toAddress,
@@ -83,7 +97,7 @@ module.exports = (api) => {
   ) => {
     // TODO: unconf output(s) error message
     const network = api.validateChainTicker(chainTicker);
-    let ecl = await api.ecl(network);
+    let ecl = api.electrum.coinData[network.toLowerCase()].nspv ? {} : await api.ecl(network);
     let fee =
       lumpFee && Number(lumpFee) !== 0
         ? Number(lumpFee)
@@ -536,11 +550,27 @@ module.exports = (api) => {
     
   };
 
-  api.post('/electrum/sendtx', async (req, res, next) => {
-    const token = req.body.token
+  api.setPost('/electrum/sendtx', async (req, res, next) => {
+    const {
+      chainTicker,
+      toAddress,
+      amount,
+      verify,
+      lumpFee,
+      feePerByte,
+      noSigature,
+      offlineTx,
+      unsigned,
+      customUtxos,
+      votingTx,
+      opreturn,
+      customWif,
+      customFromAddress
+    } = req.body
+    let preflightRes
 
-    if (api.checkToken(token)) {
-      const {
+    api.electrum
+      .txPreflight(
         chainTicker,
         toAddress,
         amount,
@@ -555,118 +585,128 @@ module.exports = (api) => {
         opreturn,
         customWif,
         customFromAddress
-      } = req.body
-      let preflightRes
+      )
+      .then(async (preflightObj) => {
+        preflightRes = preflightObj;
+        const chainTickerUc = api.validateChainTicker(chainTicker);
 
-      api.electrum
-        .txPreflight(
-          chainTicker,
-          toAddress,
-          amount,
-          verify,
-          lumpFee,
-          feePerByte,
-          noSigature,
-          offlineTx,
-          unsigned,
-          customUtxos,
-          votingTx,
-          opreturn,
-          customWif,
-          customFromAddress
-        )
-        .then(async (preflightObj) => {
-          preflightRes = preflightObj;
-          const chainTickerUc = api.validateChainTicker(chainTicker)
-          const ecl = await api.ecl(chainTickerUc)
-          ecl.connect();
-          
+        if (api.electrum.coinData[chainTickerUc.toLowerCase()].nspv) {
+          const nspvBroadcast = await api.nspvRequest(
+            chainTickerUc.toLowerCase(),
+            'broadcast',
+            [preflightRes.rawTx],
+          );
+
+          if (nspvBroadcast &&
+              nspvBroadcast.result &&
+              nspvBroadcast.result === 'success' &&
+              nspvBroadcast.expected === nspvBroadcast.broadcast) {
+            api.updatePendingTxCache(chainTicker, nspvBroadcast.broadcast, {
+              pub: api.electrumKeys[chainTicker.toLowerCase()].pub,
+              rawtx: preflightRes.rawTx,
+              value: amount,
+            });
+
+            return nspvBroadcast.broadcast;
+          } else {
+            return { message: 'unable to broadcast a tx' };
+          }
+        } else {          
+          const ecl = await api.ecl(chainTickerUc);            
           let resObj = ecl.blockchainTransactionBroadcast(preflightRes.rawTx);
 
-          return resObj
-        })
-        .then(broadcastRes => {
-          
-          const { chainTicker, fromAddress, rawTx } = preflightRes
+          return resObj;
+        }
+      })
+      .then(broadcastRes => {
+        
+        const { chainTicker, fromAddress, rawTx } = preflightRes
 
-          if (broadcastRes && JSON.stringify(broadcastRes).indexOf("fee not met") > -1) {
-            const retObj = {
-              msg: "error",
-              result: "Missing fee.",
-            };
+        if (broadcastRes && JSON.stringify(broadcastRes).indexOf("fee not met") > -1) {
+          const retObj = {
+            msg: "error",
+            result: "Missing fee.",
+          };
 
-            res.end(JSON.stringify(retObj));
-          } else if (
-            broadcastRes &&
-            JSON.stringify(broadcastRes).indexOf("bad-txns-inputs-spent") > -1
-          ) {
-            const retObj = {
-              msg: "error",
-              result: "Bad transaction inputs spent.",
-            };
+          res.send(JSON.stringify(retObj));
+        } else if (
+          broadcastRes &&
+          JSON.stringify(broadcastRes).indexOf("bad-txns-inputs-spent") > -1
+        ) {
+          const retObj = {
+            msg: "error",
+            result: "Bad transaction inputs spent.",
+          };
 
-            res.end(JSON.stringify(retObj));
-          } else if (broadcastRes && broadcastRes.length === 64) {
-            if (JSON.stringify(broadcastRes).indexOf("bad-txns-in-belowout") > -1) {
-              const retObj = {
-                msg: "error",
-                result: "Insufficient funds.",
-              };
-
-              res.end(JSON.stringify(retObj));
-            } else {
-              api.updatePendingTxCache(chainTicker, broadcastRes, {
-                pub: fromAddress,
-                rawtx: rawTx
-              });
-
-              const retObj = {
-                msg: "success",
-                result: { ...preflightRes, broadcastRes }
-              };
-
-              res.end(JSON.stringify(retObj));
-            }
-          } else if (
-            broadcastRes &&
-            JSON.stringify(broadcastRes).indexOf("bad-txns-in-belowout") > -1
-          ) {
+          res.send(JSON.stringify(retObj));
+        } else if (broadcastRes && broadcastRes.length === 64) {
+          if (JSON.stringify(broadcastRes).indexOf("bad-txns-in-belowout") > -1) {
             const retObj = {
               msg: "error",
               result: "Insufficient funds.",
             };
 
-            res.end(JSON.stringify(retObj));
+            res.send(JSON.stringify(retObj));
           } else {
+            api.updatePendingTxCache(chainTicker, broadcastRes, {
+              pub: fromAddress,
+              rawtx: rawTx
+            });
+
             const retObj = {
-              msg: "error",
-              result: broadcastRes.message,
+              msg: "success",
+              result: { ...preflightRes, broadcastRes }
             };
 
-            res.end(JSON.stringify(retObj));
+            res.send(JSON.stringify(retObj));
           }
-        })
-        .catch(e => {
+        } else if (
+          broadcastRes &&
+          JSON.stringify(broadcastRes).indexOf("bad-txns-in-belowout") > -1
+        ) {
           const retObj = {
-            msg: 'error',
-            result: e.message,
+            msg: "error",
+            result: "Insufficient funds.",
           };
-          res.end(JSON.stringify(retObj));
-        });
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-      res.end(JSON.stringify(retObj));
-    }
+
+          res.send(JSON.stringify(retObj));
+        } else {
+          const retObj = {
+            msg: "error",
+            result: broadcastRes.message,
+          };
+
+          res.send(JSON.stringify(retObj));
+        }
+      })
+      .catch(e => {
+        const retObj = {
+          msg: 'error',
+          result: e.message,
+        };
+        res.send(JSON.stringify(retObj));
+      });
   });
 
-  api.post('/electrum/tx_preflight', (req, res, next) => {
-    const token = req.body.token;
+  api.setPost('/electrum/tx_preflight', (req, res, next) => {
+    const {
+      chainTicker,
+      toAddress,
+      amount,
+      verify,
+      lumpFee,
+      feePerByte,
+      noSigature,
+      offlineTx,
+      unsigned,
+      customUtxos,
+      votingTx,
+      opreturn,
+      customWif,
+      customFromAddress
+    } = req.body;
 
-    if (api.checkToken(token)) {
-      const {
+    api.electrum.txPreflight(
         chainTicker,
         toAddress,
         amount,
@@ -681,46 +721,22 @@ module.exports = (api) => {
         opreturn,
         customWif,
         customFromAddress
-      } = req.body;
-
-      api.electrum.txPreflight(
-          chainTicker,
-          toAddress,
-          amount,
-          verify,
-          lumpFee,
-          feePerByte,
-          noSigature,
-          offlineTx,
-          unsigned,
-          customUtxos,
-          votingTx,
-          opreturn,
-          customWif,
-          customFromAddress
-        )
-        .then(preflightObj => {
-          res.end(
-            JSON.stringify({
-              msg: "success",
-              result: preflightObj
-            })
-          );
-        })
-        .catch(e => {
-          const retObj = {
-            msg: "error",
-            result: e.message
-          };
-          res.end(JSON.stringify(retObj));
-        });
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-      res.end(JSON.stringify(retObj));
-    }
+      )
+      .then(preflightObj => {
+        res.send(
+          JSON.stringify({
+            msg: "success",
+            result: preflightObj
+          })
+        );
+      })
+      .catch(e => {
+        const retObj = {
+          msg: "error",
+          result: e.message
+        };
+        res.send(JSON.stringify(retObj));
+      });
   });
     
   return api;

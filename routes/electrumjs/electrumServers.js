@@ -278,7 +278,6 @@ for (let i = 0; i < disableCoins.length; i++) {
   if (electrumServers[disableCoins[i]]) {
     delete electrumServers[disableCoins[i]];
     delete electrumServersFlag[disableCoins[i]];
-    // console.log(`disable spv coin ${disableCoins[i]}`);
   }
 }
 

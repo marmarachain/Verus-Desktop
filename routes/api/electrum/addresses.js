@@ -29,61 +29,45 @@ module.exports = (api) => {
     });
   };
 
-  api.post('/electrum/get_pubkey', (req, res, next) => {
+  api.setPost('/electrum/get_pubkey', (req, res, next) => {
     const coin = req.body.chainTicker;
-    const token = req.body.token;
     const coinLc = coin.toLowerCase()
 
-    if (api.checkToken(token)) {
-      if (api.electrumKeys[coinLc] && api.electrumKeys[coinLc].pubHex) {
-        res.end(JSON.stringify({
-          msg: 'success',
-          result: api.electrumKeys[coinLc].pubHex
-        }));  
-      } else {
-        res.end(JSON.stringify({
-          msg: 'error',
-          result: `No pubkey found for electrum coin ${coin}`
-        }));  
-      }
+    if (api.electrumKeys[coinLc] && api.electrumKeys[coinLc].pubHex) {
+      res.send(JSON.stringify({
+        msg: 'success',
+        result: api.electrumKeys[coinLc].pubHex
+      }));  
     } else {
-      res.end(JSON.stringify({
+      res.send(JSON.stringify({
         msg: 'error',
-        result: 'unauthorized access'
+        result: `No pubkey found for electrum coin ${coin}`
       }));  
     }
   });
 
-  api.post('/electrum/get_privkey', (req, res, next) => {
+  api.setPost('/electrum/get_privkey', (req, res, next) => {
     const coin = req.body.chainTicker;
-    const token = req.body.token;
     const coinLc = coin.toLowerCase()
 
-    if (api.checkToken(token)) {
-      if (api.electrumKeys[coinLc] && api.electrumKeys[coinLc].priv) {
-        res.end(JSON.stringify({
-          msg: 'success',
-          result: api.electrumKeys[coinLc].priv
-        }));  
-      } else {
-        res.end(JSON.stringify({
-          msg: 'error',
-          result: `No privkey found for electrum coin ${coin}`
-        }));  
-      }
+    if (api.electrumKeys[coinLc] && api.electrumKeys[coinLc].priv) {
+      res.send(JSON.stringify({
+        msg: 'success',
+        result: api.electrumKeys[coinLc].priv
+      }));  
     } else {
-      res.end(JSON.stringify({
+      res.send(JSON.stringify({
         msg: 'error',
-        result: 'unauthorized access'
+        result: `No privkey found for electrum coin ${coin}`
       }));  
     }
   });
 
-  api.get('/electrum/get_addresses', (req, res, next) => {
+  api.setGet('/electrum/get_addresses', (req, res, next) => {
     const coin = req.query.chainTicker;
 
     if (!req.query.chainTicker) {
-      res.end(JSON.stringify({msg: 'error', result: "No coin passed to electrum get_addresses"}));
+      res.send(JSON.stringify({msg: 'error', result: "No coin passed to electrum get_addresses"}));
     }
     
     api.electrum.get_addresses(coin)
@@ -93,7 +77,7 @@ module.exports = (api) => {
         result: addresses,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
     .catch(error => {
       const retObj = {
@@ -101,7 +85,7 @@ module.exports = (api) => {
         result: error.message,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
   });
 

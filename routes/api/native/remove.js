@@ -29,7 +29,7 @@ module.exports = (api) => {
   
         _arg.push('stop');
 
-        api.native.callDaemon(chain == null ? "KMD" : chain, 'stop', [], api.appSessionHash)
+        api.native.callDaemon(chain == null ? "KMD" : chain, 'stop', [])
         .then(res => {
           api.log(`sent stop sig to ${key}, got result:`, '\nnative.process');
           api.log(`${res}\n`, 'native.process')
@@ -47,7 +47,7 @@ module.exports = (api) => {
             // Status is 'open' if currently in use or 'closed' if available
             if (status === 'closed') {
               api.log(`${key} shut down succesfully, cleaning up...`, 'native.process');
-              delete api.coindInstanceRegistry[key];
+              delete api.startedDaemonRegistry[key];
               delete api.native.startParams[key];
 
               Object.keys(api.native.cache).map(cacheType => {
@@ -87,7 +87,7 @@ module.exports = (api) => {
     // exit komodod gracefully
     api.lockDownAddCoin = true;
 
-    for (let key in api.coindInstanceRegistry) {
+    for (let key in api.startedDaemonRegistry) {
       if (api.appConfig.general.native.stopNativeDaemonsOnQuit) {
         api.quitDaemon(key, timeout);
       } else {
@@ -96,26 +96,16 @@ module.exports = (api) => {
     }
   }
 
-  api.post('/native/remove_coin', (req, res) => {
-    if (api.checkToken(req.body.token)) {
-      const _chain = req.body.chainTicker === 'KMD' ? 'komodod' : req.body.chainTicker;
-      
-      api.quitDaemon(_chain, 30000)
-      .then(result => {
-        res.end(JSON.stringify({
-          msg: 'success',
-          result: 'daemon stopped',
-        }));
-      })
-
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
+  api.setPost('/native/remove_coin', (req, res) => {
+    const _chain = req.body.chainTicker === 'KMD' ? 'komodod' : req.body.chainTicker;
+    
+    api.quitDaemon(_chain, 30000)
+    .then(result => {
+      res.send(JSON.stringify({
+        msg: 'success',
+        result: 'daemon stopped',
+      }));
+    })
   });
 
   return api;

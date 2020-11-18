@@ -21,8 +21,8 @@ module.exports = (api) => {
     api = setDaemonPath(api, daemonName);
   }
 
-  api.setCoinDir = (coin, dirNames) => {
-    api = setCoinDir(api, coin, dirNames)
+  api.setCoinDir = (coin, dirNames, absolute = false) => {
+    api = setCoinDir(api, coin, dirNames, absolute)
   }
 
   return api;

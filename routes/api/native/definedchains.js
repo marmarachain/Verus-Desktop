@@ -1,9 +1,9 @@
 const Promise = require('bluebird');
 
 module.exports = (api) => {    
-  api.native.get_definedchains = (coin, token) => {
+  api.native.get_definedchains = (coin) => {
     return new Promise((resolve, reject) => {      
-      api.native.callDaemon(coin, 'getdefinedchains', [], token)
+      api.native.callDaemon(coin, 'getdefinedchains', [])
       .then((definedchains) => {
         resolve(definedchains)
       })
@@ -13,18 +13,17 @@ module.exports = (api) => {
     });
   };
 
-  api.post('/native/get_definedchains', (req, res, next) => {
-    const token = req.body.token;
+  api.setPost('/native/get_definedchains', (req, res, next) => {
     const coin = req.body.chainTicker;
 
-    api.native.get_definedchains(coin, token)
+    api.native.get_definedchains(coin)
     .then((definedchains) => {
       const retObj = {
         msg: 'success',
         result: definedchains,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
     .catch(error => {
       const retObj = {
@@ -32,7 +31,7 @@ module.exports = (api) => {
         result: error.message,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
   });
 

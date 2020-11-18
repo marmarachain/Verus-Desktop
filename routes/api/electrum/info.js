@@ -1,22 +1,35 @@
 module.exports = (api) => {  
-  api.get('/electrum/get_info', (req, res, next) => {
+  api.setGet('/electrum/get_info', (req, res, next) => {
     if (!req.query.chainTicker) {
-      res.end(JSON.stringify({msg: 'error', result: "No coin passed to electrum get_info"}));
+      res.send(JSON.stringify({
+        msg: 'error',
+        result: 'No coin passed to electrum get_info'
+      }));
     }
-    const coinLc = req.query.chainTicker.toLowerCase()
+    const coinLc = req.query.chainTicker.toLowerCase();
 
     if (!api.electrum.coinData[coinLc]) {
-      res.end(JSON.stringify({msg: 'error', result: `No coin data found for ${req.query.chainTicker}`}));
+      res.send(JSON.stringify({
+        msg: 'error',
+        result: `No coin data found for ${req.query.chainTicker}`
+      }));
     }
 
-    const { name, txfee, server, serverList } = api.electrum.coinData[coinLc]
+    const { name, txfee, server, serverList, nspv } = api.electrum.coinData[coinLc];
 
-    res.end(JSON.stringify({msg: 'success', result: {
+    res.send(JSON.stringify({msg: 'success', result: nspv ? {
+      protocol: "nSPV",
+      name,
+      txfee,
+      server: `${server.ip}:${server.port}:${server.proto}`,
+      serverList: serverList.toString(),
+    } : {
       protocol: "Electrum",
       name,
       txfee,
       server: `${server.ip}:${server.port}:${server.proto}`,
-      serverList: serverList.toString()
+      serverList: serverList.toString(),
+      nspv,
     }}));
       
     const coin = req.query.chainTicker;
@@ -34,7 +47,7 @@ module.exports = (api) => {
       }
     }
     
-    res.end(JSON.stringify(retObj));  
+    res.send(JSON.stringify(retObj));  
   });
 
   return api;

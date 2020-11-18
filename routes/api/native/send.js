@@ -1,15 +1,26 @@
+const { extractReserveTransfers } = require("../utils/cryptoConditions/cryptoConditionTxUtil");
+const { RPC_WALLET_INSUFFICIENT_FUNDS } = require("../utils/rpc/rpcStatusCodes");
+
 module.exports = (api) => {  
   api.native.encodeMemo = (memo) => {
-    var hex;
-    var i;
-  
-    var result = "";
-    for (i = 0; i < memo.length; i++) {
-      hex = memo.charCodeAt(i).toString(16);
-      result += ("000"+hex).slice(-4);
-    }
-  
-    return result;
+    return Array.from(memo).map(c => 
+      c.charCodeAt(0) < 128 ? c.charCodeAt(0).toString(16).padStart(2, '0') :
+      encodeURIComponent(c).replace(/\%/g,'').toLowerCase()
+    ).join('');
+  }
+
+  api.native.testSendCurrency = async (chainTicker, txParams) => {
+    const rawtx = await api.native.callDaemon(
+      chainTicker,
+      "sendcurrency",
+      [...txParams, true]
+    )
+
+    return await api.native.callDaemon(
+      chainTicker,
+      "decoderawtransaction",
+      [rawtx]
+    )
   }
 
   /**
@@ -24,11 +35,7 @@ module.exports = (api) => {
    * @param {String} fromAddress (optional, if no custom fee or z_addresses involved) The address to send from, or in a pre-convert, the refund address
    * @param {Number} customFee (optional, forces fromAddress) The custom fee to send with the transaction
    * @param {String} memo (optional, forces send to z_address) The memo to include with the transaction to be sent to the receiver
-   * @param {String} toChain (optional, forces all pbaas params to be required) The PBaaS chain to send to 
-   * @param {Boolean} toNative (optional, forces all pbaas params to be required) auto-convert from Verus reserve to PBaaS currency at market price
-   * @param {Boolean} toReserve (optional, forces all pbaas params to be required) auto-convert from PBaaS to Verus reserve currency at market price
-   * @param {Boolean} preConvert (optional, forces all pbaas params to be required) auto-convert to PBaaS currency at market price, this only works if the order is mined before block start of the chain
-   * @param {Number} lastPriceInRoot (optional) The last price of the chain to send to vs the chain to send from, for display purposes
+   * @param {Object} currencyParams (optional) Parameters for PBaaS sendcurrency API that arent deduced from above, e.g. { currency: "VRSCTEST", convertto: "test", preconvert: true }
    */
   api.native.txPreflight = async (
     chainTicker,
@@ -38,30 +45,56 @@ module.exports = (api) => {
     fromAddress,
     customFee,
     memo,
-    toChain,
-    toNative,
-    toReserve,
-    preConvert,
-    lastPriceInRoot = 0
+    currencyParams
   ) => {
     let cliCmd
     let txParams
     let warnings = []
+    let price
+    let conversionValue
+    let fromCurrency
+    let toCurrency
+    let mint = false
 
-    //TODO: Change for sendreserve
-    let fee = 0.0001
+    let isSendCurrency =
+      currencyParams != null &&
+      currencyParams.currency != null &&
+      (currencyParams.currency != chainTicker ||
+        (currencyParams.currency === chainTicker &&
+          currencyParams.convertto != null &&
+          currencyParams.convertto !== currencyParams.currency));
+
+    //TODO: Change for sendcurrency to account for 0.25% fee
+    let fee = isSendCurrency ? 0.0003 : 0.0001
     let spendAmount = amount
-    let deductedAmount = Number((spendAmount + fee).toFixed(8))
+    let deductedAmount
+
+    // Pre-processing for fee purposes
+    if (isSendCurrency) {
+      if (currencyParams.mintnew) {
+        spendAmount = 0
+      }
+      
+      if (
+        currencyParams.currency != null &&
+        currencyParams.convertto != null &&
+        currencyParams.currency !== currencyParams.convertto
+      ) {
+        fee += (spendAmount * 0.00025);
+      }
+    } 
+
+    deductedAmount = Number((spendAmount + fee).toFixed(8))
 
     try {
-      const balances = await api.native.get_balances(chainTicker, api.appSessionHash, false)
+      const balances = await api.native.get_balances(chainTicker, false)
       const { interest } = balances.native.public
 
       if (deductedAmount > balance) {
         if (interest == null || interest == 0) {
           warnings.push({
             field: "value",
-            message: `Original amount + fee (${deductedAmount}) is larger than balance, amount has been changed.`
+            message: `Original amount + est. fee (${deductedAmount}) is larger than balance, amount has been changed.`
           });
         }
         
@@ -69,7 +102,104 @@ module.exports = (api) => {
         deductedAmount = Number((spendAmount + fee).toFixed(8));
       }
   
-      if (fromAddress || toAddress[0] === "z" || customFee != null) {
+      if (isSendCurrency) {
+        const { currency, convertto, refundto, preconvert, subtractfee, mintnew } = currencyParams
+        cliCmd = "sendcurrency";
+        
+        try {
+          fromCurrency = await api.native.get_currency(
+            chainTicker,
+            currency == null ? chainTicker : currency
+          );
+          
+          if (convertto != null && convertto !== currency) {
+            toCurrency = await api.native.get_currency(chainTicker, convertto)            
+            currentHeight = await api.native.get_info(chainTicker).longestchain
+
+            if (currentHeight < toCurrency.startblock && !preconvert) {
+              throw new Error("Preconvert expired! You can no longer preconvert this currency.")
+            }
+
+            if (
+              toCurrency.bestcurrencystate != null &&
+              toCurrency.bestcurrencystate.currencies[
+                fromCurrency.currencyid
+              ] != null
+            ) {
+              price = toCurrency.bestcurrencystate.currencies[fromCurrency.currencyid].lastconversionprice;
+              conversionValue = spendAmount * (1 / price)
+            } else if (
+              fromCurrency.bestcurrencystate != null &&
+              fromCurrency.bestcurrencystate.currencies[
+                toCurrency.currencyid
+              ] != null
+            ) {
+              price = 1 / fromCurrency.bestcurrencystate.currencies[toCurrency.currencyid].lastconversionprice;
+              conversionValue = spendAmount * (1 / price)
+            } else {
+              throw new Error(
+                `Conversion between ${toCurrency.name} and ${fromCurrency.name} is not possible.`
+              );
+            }
+          }
+        } catch (e) {
+          api.log("Error while trying to fetch currencies for sendcurrency!", "send")
+          api.log(e, "send")
+
+          throw e
+        }
+        
+        mint = mintnew
+        txParams = [
+          fromAddress == null ? "*" : fromAddress,
+          [{
+            currency,
+            convertto,
+            refundto,
+            preconvert,
+            subtractfee,
+            amount: spendAmount,
+            address: toAddress,
+            memo,
+            mintnew
+          }]
+        ];
+
+        // Extract reserve transfer outputs
+        try {
+          sendCurrencyTest = await api.native.testSendCurrency(chainTicker, txParams)
+        } catch(e) {
+          if (e.message === 'Insufficient funds' && mint) {
+            e.message = `Insufficient funds. To mint coins, ensure that the identity that created this currency (${fromAddress}) has at least a balance of 0.0002 ${chainTicker}.`
+          } else {
+            api.log("Error while testing currency send!", "send")
+            api.log(e, "send")
+            throw e
+          }
+        }
+        // Ensure values from decoded tx match input values
+
+        // TODO: Fix once extractReserveTransfers is moved to 
+        // cryptoConditions.js
+        
+        /*
+        let reserveTransfer = extractReserveTransfers(sendCurrencyTest)[0]
+        
+        if (reserveTransfer == null)
+          throw new Error(
+            "Failed to create and verify reserve transfer transaction."
+          );
+        else if (
+          reserveTransfer.preconvert != preconvert ||
+          (convertto !== currency && !reserveTransfer.convert) || 
+          (toCurrency != null && (toCurrency.currencyid !== reserveTransfer.destinationcurrencyid)) ||
+          (fromCurrency != null && (fromCurrency.currencyid !== reserveTransfer.currencyid))
+        ) {
+          throw new Error(
+            "Failed to verify that sendcurrency input data matches what is going to be sent."
+          );
+        }*/
+      } else if (fromAddress || toAddress[0] === "z" || customFee != null) {
         cliCmd = "z_sendmany";
         if (customFee) fee = customFee;
         if (!fromAddress) throw new Error("You must specify a from address in a private transaction.")
@@ -85,36 +215,18 @@ module.exports = (api) => {
           1,
           fee
         ];
-  
+
         if (memo) {
           if (toAddress[0] !== 'z') throw new Error("Memos can only be attached to transactions going to z addresses.")
           txParams[1][0].memo = api.native.encodeMemo(memo);
         }
-      } else if (
-        toChain ||
-        toNative != null ||
-        toReserve != null ||
-        preConvert != null
-      ) {
-        cliCmd = "sendreserve";
-        txParams = [
-          {
-            name: toChain,
-            paymentaddress: toAddress,
-            refundaddress: fromAddress,
-            amount: spendAmount,
-            tonative: toNative ? 1 : 0,
-            toreserve: toReserve ? 1 : 0,
-            preconvert: preConvert ? 1 : 0,
-            subtractfee: 0
-          }
-        ];
       } else {
         cliCmd = "sendtoaddress";
         txParams = [toAddress, spendAmount];
       }
-
+      
       let remainingBalance = balance != null && deductedAmount != null ? (balance - deductedAmount).toFixed(8) : 0
+
       if (remainingBalance < 0) throw new Error("Insufficient funds")
   
       if (interest != null && interest > 0) {
@@ -130,33 +242,52 @@ module.exports = (api) => {
           deductedAmount -= interest
         }
       } 
-      
+
       return {
         cliCmd,
         txParams,
         chainTicker,
         to: toAddress,
-        from: fromAddress ? fromAddress : cliCmd === 'sendtoaddress' ? 'Transparent Funds' : null,
+        from: mint
+          ? `The "${fromCurrency.name}" Mint (${fromCurrency.name}@)`
+          : fromAddress
+          ? fromAddress
+          : cliCmd === "sendtoaddress" || cliCmd === "sendcurrency"
+          ? "Transparent Funds"
+          : null,
         balance: balance ? balance.toFixed(8) : balance,
         value: spendAmount,
         interest: interest == null || interest == 0 ? null : interest,
         fee: fee ? fee.toFixed(8) : fee,
         message: memo,
         total: deductedAmount ? deductedAmount.toFixed(8) : deductedAmount,
-        lastPrice: lastPriceInRoot ? lastPriceInRoot.toFixed(8) : lastPriceInRoot,
         remainingBalance,
         warnings,
+        price,
+        conversionValue,
+        fromCurrency,
+        toCurrency,
+        mint
       };
     } catch (e) {
       throw e
     }
   };
 
-  api.post('/native/sendtx', async (req, res, next) => {
-    const token = req.body.token;
+  api.setPost('/native/sendtx', async (req, res, next) => {
+    const {
+      chainTicker,
+      toAddress,
+      amount,
+      balance,
+      fromAddress,
+      customFee,
+      memo,
+      currencyParams
+    } = req.body;
 
-    if (api.checkToken(token)) {
-      const {
+    try {
+      const preflightRes = await api.native.txPreflight(
         chainTicker,
         toAddress,
         amount,
@@ -164,112 +295,67 @@ module.exports = (api) => {
         fromAddress,
         customFee,
         memo,
-        toChain,
-        toNative,
-        toReserve,
-        preConvert,
-        lastPriceInRoot
-      } = req.body;
+        currencyParams
+      )
 
-      try {
-        const preflightRes = await api.native.txPreflight(
-          chainTicker,
-          toAddress,
-          amount,
-          balance,
-          fromAddress,
-          customFee,
-          memo,
-          toChain,
-          toNative,
-          toReserve,
-          preConvert,
-          lastPriceInRoot
-        )
-
-        api.native.callDaemon(chainTicker, preflightRes.cliCmd, preflightRes.txParams, token)
-        .then(txid => {
-          const retObj = {
-            msg: "success",
-            result: { ...preflightRes, txid }
-          };
-          res.end(JSON.stringify(retObj));
-        }).catch(e => {
-          const retObj = {
-            msg: "error",
-            result: e.message
-          };
-          res.end(JSON.stringify(retObj));
-        })
-      } catch (e) {
+      api.native.callDaemon(chainTicker, preflightRes.cliCmd, preflightRes.txParams)
+      .then(txid => {
+        const retObj = {
+          msg: "success",
+          result: { ...preflightRes, txid }
+        };
+        res.send(JSON.stringify(retObj));
+      }).catch(e => {
         const retObj = {
           msg: "error",
           result: e.message
         };
-
-        res.end(JSON.stringify(retObj));
-      }
-    } else {
+        res.send(JSON.stringify(retObj));
+      })
+    } catch (e) {
       const retObj = {
         msg: "error",
-        result: "unauthorized access"
+        result: e.message
       };
-      res.end(JSON.stringify(retObj));
+
+      res.send(JSON.stringify(retObj));
     }
   });
 
-  api.post("/native/tx_preflight", async (req, res, next) => {
-    const token = req.body.token;
+  api.setPost("/native/tx_preflight", async (req, res, next) => {
+    const {
+      chainTicker,
+      toAddress,
+      amount,
+      balance,
+      fromAddress,
+      customFee,
+      memo,
+      currencyParams
+    } = req.body;
 
-    if (api.checkToken(token)) {
-      const {
-        chainTicker,
-        toAddress,
-        amount,
-        balance,
-        fromAddress,
-        customFee,
-        memo,
-        toChain,
-        toNative,
-        toReserve,
-        preConvert,
-        lastPriceInRoot
-      } = req.body;
-
-      try {
-        res.end(
-          JSON.stringify({
-            msg: "success",
-            result: await api.native.txPreflight(
-              chainTicker,
-              toAddress,
-              amount,
-              balance,
-              fromAddress,
-              customFee,
-              memo,
-              toChain,
-              toNative,
-              toReserve,
-              preConvert,
-              lastPriceInRoot
-            )
-          })
-        );
-      } catch (e) {
-        const retObj = {
-          msg: "error",
-          result: e.message
-        };
-        res.end(JSON.stringify(retObj));
-      }
-    } else {
+    try {
+      res.send(
+        JSON.stringify({
+          msg: "success",
+          result: await api.native.txPreflight(
+            chainTicker,
+            toAddress,
+            amount,
+            balance,
+            fromAddress,
+            customFee,
+            memo,
+            currencyParams
+          )
+        })
+      );
+    } catch (e) {
       const retObj = {
         msg: "error",
-        result: "unauthorized access"
+        result: e.message
       };
-      res.end(JSON.stringify(retObj));
+      res.send(JSON.stringify(retObj));
     }
   });
     

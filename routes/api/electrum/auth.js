@@ -5,28 +5,19 @@ const { seedToPriv } = require('agama-wallet-lib/src/keys');
 // TODO: merge spv and eth login/logout into a single function
 
 module.exports = (api) => {
-  api.post('/electrum/auth', (req, res, next) => {
-    if (api.checkToken(req.body.token)) {
-      const _seed = req.body.seed;
-      const isIguana = req.body.iguana;
-      const _wifError = api.auth(_seed, isIguana);
+  api.setPost('/electrum/auth', (req, res, next) => {
+    const _seed = req.body.seed;
+    const isIguana = req.body.iguana;
+    const _wifError = api.auth(_seed, isIguana);
 
-      // api.log(JSON.stringify(api.electrumKeys, null, '\t'), true);
+    // api.log(JSON.stringify(api.electrumKeys, null, '\t'), true);
 
-      const retObj = {
-        msg: _wifError ? 'error' : 'success',
-        result: 'true',
-      };
+    const retObj = {
+      msg: _wifError ? 'error' : 'success',
+      result: 'true',
+    };
 
-      res.end(JSON.stringify(retObj));
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
+    res.send(JSON.stringify(retObj));
   });
 
   api.auth = (seed, isIguana) => {
@@ -97,56 +88,42 @@ module.exports = (api) => {
     return _wifError;
   };
 
-  api.post('/electrum/lock', (req, res, next) => {
-    if (api.checkToken(req.body.token)) {
-      api.electrum.auth = false;
-      api.electrumKeys = {};
-      api.seed = null;
-      api.eth.wallet = {};
+  api.setPost('/electrum/lock', (req, res, next) => {
+    api.electrum.auth = false;
+    api.electrumKeys = {};
+    api.seed = null;
+    api.eth.wallet = {};
 
-      const retObj = {
-        msg: 'success',
-        result: 'true',
-      };
+    const retObj = {
+      msg: 'success',
+      result: 'true',
+    };
 
-      res.end(JSON.stringify(retObj));
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
+    res.send(JSON.stringify(retObj));
   });
 
-  api.post('/electrum/logout', (req, res, next) => {
-    if (api.checkToken(req.body.token)) {
-      api.seed = null;
-      api.electrum = {
-        ...api.electrum,
-        auth: false,
-        coinData: {}
-      };
-      api.electrumKeys = {};
-      api.eth.coins = {};
-      api.eth.connect = {};
-      api.eth.wallet = {};
+  api.setPost('/electrum/logout', (req, res, next) => {
+    api.stopNSPVDaemon('all');
+    
+    api.seed = null;
+    api.electrum = {
+      ...api.electrum,
+      auth: false,
+      coinData: {}
+    };
+    api.electrumKeys = {};
+    api.eth.coins = {};
+    api.eth.connect = {};
+    api.eth.wallet = {};
 
-      const retObj = {
-        msg: 'success',
-        result: 'result',
-      };
+    api.eclManagerClear();
 
-      res.end(JSON.stringify(retObj));
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
+    const retObj = {
+      msg: 'success',
+      result: 'result',
+    };
 
-      res.end(JSON.stringify(retObj));
-    }
+    res.send(JSON.stringify(retObj));
   });
 
   return api;

@@ -84,48 +84,48 @@ module.exports = (api) => {
   }
 
   //TODO: Clean this up to be one function without making GUI component messier
-  api.get('/native/get_fiatprice', (req, res, next) => {
+  api.setGet('/native/get_fiatprice', (req, res, next) => {
     const coin = req.query.chainTicker
     const currency = req.query.currency
 
     api.fiat.get_fiatprice(coin, currency)
     .then((priceObj) => {
-      res.end(JSON.stringify(priceObj)); 
+      res.send(JSON.stringify(priceObj)); 
     })
     .catch(e => {
-      res.end(JSON.stringify({
+      res.send(JSON.stringify({
         msg: 'error',
         result: e.message
       })); 
     })
   });
 
-  api.get('/eth/get_fiatprice', (req, res, next) => {
+  api.setGet('/eth/get_fiatprice', (req, res, next) => {
     const coin = req.query.chainTicker
     const currency = req.query.currency
 
     api.fiat.get_fiatprice(coin, currency)
     .then((priceObj) => {
-      res.end(JSON.stringify(priceObj)); 
+      res.send(JSON.stringify(priceObj)); 
     })
     .catch(e => {
-      res.end(JSON.stringify({
+      res.send(JSON.stringify({
         msg: 'error',
         result: e.message
       })); 
     })
   });
 
-  api.get('/electrum/get_fiatprice', (req, res, next) => {
+  api.setGet('/electrum/get_fiatprice', (req, res, next) => {
     const coin = req.query.chainTicker
     const currency = req.query.currency
 
     api.fiat.get_fiatprice(coin, currency)
     .then((priceObj) => {
-      res.end(JSON.stringify(priceObj)); 
+      res.send(JSON.stringify(priceObj)); 
     })
     .catch(e => {
-      res.end(JSON.stringify({
+      res.send(JSON.stringify({
         msg: 'error',
         result: e.message
       })); 

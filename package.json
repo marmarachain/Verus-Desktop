@@ -1,7 +1,7 @@
 {
   "name": "verus-desktop",
   "productName": "Verus-Desktop",
-  "version": "0.6.4-beta-1",
+  "version": "0.7.2-4",
   "description": "Verus Desktop Wallet App",
   "main": "main.js",
   "scripts": {
@@ -13,12 +13,12 @@
     "dist-win": "electron-builder --publish=never  --win",
     "test": "mocha",
     "update-agamalib": "rm -rf node_modules/agama-wallet-lib/ && yarn install",
-    "postinstall": "rm -rf node_modules/bitgo-utxo-lib/node_modules/create-hash && electron-builder install-app-deps"
+    "postinstall": "rm -rf node_modules/bitgo-utxo-lib/node_modules/create-hash"
   },
   "engines": {
     "node": ">11"
   },
-  "repository": "https://github.com/VerusCoin/Agama/",
+  "repository": "https://github.com/VerusCoin/Verus-Desktop/",
   "homepage": "https://veruscoin.io",
   "keywords": [
     "agama",
@@ -37,13 +37,14 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "cross-env": "^5.2.0",
+    "cross-env": "^5.2.1",
     "electron": "^4.2.12",
-    "electron-builder": "21.2.0",
+    "electron-builder": "22.9.1",
     "electron-devtools-installer": "^2.2.4",
-    "electron-rebuild": "^1.8.8"
+    "electron-rebuild": "^1.11.0"
   },
   "dependencies": {
+    "@ethersproject/signing-key": "^5.0.5",
     "adm-zip": "^0.4.7",
     "agama-wallet-lib": "git+https://github.com/VerusCoin/agama-wallet-lib.git#dev",
     "arch": "^2.1.0",
@@ -51,12 +52,15 @@
     "bigi": "^1.4.2",
     "bip39": "^2.5.0",
     "bitgo-utxo-lib": "git+https://github.com/VerusCoin/bitgo-utxo-lib.git",
+    "blake2b": "https://github.com/michaeltout/blake2b.git",
     "bluebird": "^3.4.7",
     "body-parser": "^1.15.2",
     "buffer-reverse": "^1.0.1",
     "coinselect": "github:bitcoinjs/coinselect",
     "create-hash": "git://github.com/pbca26/createHash#electron-v4",
-    "ethers": "git://github.com/pbca26/ethers.js",
+    "crypto-js": "^4.0.0",
+    "csv-writer": "^1.6.0",
+    "ethers": "^4.0.44",
     "express": "^4.14.0",
     "fix-path": "^2.1.0",
     "fs-extra": "^7.0.0",
@@ -96,7 +100,7 @@
     ],
     "asar": false,
     "mac": {
-      "artifactName": "${productName}-MacOS-v${version}.${ext}",
+      "artifactName": "${productName}-v${version}.${ext}",
       "icon": "assets/icons/agama_icons/vrsc.icns",
       "target": [
         "dmg"
@@ -118,7 +122,7 @@
       ]
     },
     "linux": {
-      "artifactName": "${productName}-Linux-v${version}-${arch}.${ext}",
+      "artifactName": "${productName}-v${version}-${arch}.${ext}",
       "icon": "assets/icons/agama_icons",
       "desktop": {
         "Encoding": "UTF-8"
@@ -128,9 +132,8 @@
       ]
     },
     "win": {
-      "artifactName": "${productName}-Windows-v${version}.${ext}",
+      "artifactName": "${productName}-v${version}.${ext}",
       "target": [
-        "zip",
         "nsis"
       ],
       "icon": "assets/icons/vrsc.ico"
@@ -138,15 +141,22 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "license": "LICENSE",
       "installerIcon": "assets/icons/vrsc.ico"
     }
   },
   "resolutions": {
-    "lodash": "^4.17.11",
+    "lodash": "^4.17.19",
     "js-yaml": "^3.13.1",
     "tar": "^4.4.8",
     "https-proxy-agent": "2.2.4",
     "mem": "4.0.0",
-    "bin-links": "1.1.6"
+    "bin-links": "1.1.6",
+    "yargs-parser": "^13.1.2",
+    "minimist": "^1.2.5",
+    "elliptic": "^6.5.3",
+    "bn.js": "^4.11.8",
+    "dot-prop": "^5.2.0",
+    "npm-registry-fetch": "^4.0.5"
   }
 }

@@ -4,7 +4,6 @@ module.exports = (api) => {
   /**
    * Recovers an ID given the information
    * @param {String} coin The chainTicker of the coin that the ID is based on
-   * @param {String} token The current API token from the GUI
    * @param {String} name The name of the ID to reserve
    * @param {String[]} primaryaddresses An array of the primary addresses for this id
    * @param {Number} minimumsignatures The minimum signitures required to sign a tx for this ID
@@ -15,7 +14,6 @@ module.exports = (api) => {
    */
   api.native.recover_id = (
     coin,
-    token,
     name,
     primaryaddresses,
     minimumsignatures = 1,
@@ -43,8 +41,7 @@ module.exports = (api) => {
         .callDaemon(
           coin,
           "getidentity",
-          [idJson.name],
-          token
+          [idJson.name]
         )
       .then(idObj => {
         if (!idObj) throw new Error(`${idJson.name} ID not found.`)
@@ -57,8 +54,7 @@ module.exports = (api) => {
         .callDaemon(
           coin,
           "recoveridentity",
-          [idJson],
-          token
+          [idJson]
         )
       })
       .then(idRecoveryResult => {
@@ -77,7 +73,6 @@ module.exports = (api) => {
   //TODO: Add more checks in here as well
   api.native.recover_id_preflight = (
     coin,
-    token,
     name,
     primaryaddresses,
     minimumsignatures = 1,
@@ -100,10 +95,9 @@ module.exports = (api) => {
     });
   };
 
-  api.post('/native/recover_id', (req, res, next) => {
+  api.setPost('/native/recover_id', (req, res, next) => {
     const {
       chainTicker,
-      token,
       name,
       primaryaddresses,
       minimumsignatures,
@@ -116,7 +110,6 @@ module.exports = (api) => {
     api.native
       .recover_id(
         chainTicker,
-        token,
         name,
         primaryaddresses,
         minimumsignatures,
@@ -131,7 +124,7 @@ module.exports = (api) => {
           result: recoveryObj
         };
 
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       })
       .catch(error => {
         const retObj = {
@@ -139,14 +132,13 @@ module.exports = (api) => {
           result: error.message
         };
 
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       });
   });
 
-  api.post('/native/recover_id_preflight', (req, res, next) => {
+  api.setPost('/native/recover_id_preflight', (req, res, next) => {
     const {
       chainTicker,
-      token,
       name,
       primaryaddresses,
       minimumsignatures,
@@ -159,7 +151,6 @@ module.exports = (api) => {
     api.native
       .recover_id_preflight(
         chainTicker,
-        token,
         name,
         primaryaddresses,
         minimumsignatures,
@@ -174,7 +165,7 @@ module.exports = (api) => {
           result: idRecoveryResult
         };
 
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       })
       .catch(error => {
         const retObj = {
@@ -182,7 +173,7 @@ module.exports = (api) => {
           result: error.message
         };
 
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       });
   });
 

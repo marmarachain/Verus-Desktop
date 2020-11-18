@@ -52,7 +52,6 @@ help
 debug.log
 genesis
 DB
-coins
 
 # Electron-builder related folders
 build

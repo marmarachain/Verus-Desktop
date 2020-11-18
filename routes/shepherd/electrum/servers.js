@@ -111,12 +111,7 @@ module.exports = (shepherd) => {
           return new Promise((resolve, reject) => {
             const result = 'electrumServers.json write file is done';
 
-            fs.writeFile(electrumServersListFileName,
-                        JSON.stringify(list)
-                        .replace(/,/g, ',\n') // format json in human readable form
-                        .replace(/":/g, '": ')
-                        .replace(/{/g, '{\n')
-                        .replace(/}/g, '\n}'), 'utf8', (err) => {
+            fs.writeFile(electrumServersListFileName, JSON.stringify(list), 'utf8', (err) => {
               if (err)
                 return shepherd.log(err);
             });
@@ -160,12 +155,7 @@ module.exports = (shepherd) => {
           return new Promise((resolve, reject) => {
             const result = 'kvElectrumServersCache.json write file is done';
 
-            fs.writeFile(kvElectrumServersListFileName,
-                        JSON.stringify(list)
-                        .replace(/,/g, ',\n') // format json in human readable form
-                        .replace(/":/g, '": ')
-                        .replace(/{/g, '{\n')
-                        .replace(/}/g, '\n}'), 'utf8', (err) => {
+            fs.writeFile(kvElectrumServersListFileName, JSON.stringify(list), 'utf8', (err) => {
               if (err)
                 return shepherd.log(err);
             });
@@ -185,57 +175,6 @@ module.exports = (shepherd) => {
       }
     });
   };
-
-  //TODO: Re-evauluate as POST or eliminate use of API token
-  /*
-  shepherd.get('/electrum/kv/servers', (req, res, next) => {
-    if (shepherd.checkToken(req.query.token)) {
-      shepherd.listtransactions({
-        network: 'KV',
-        coin: 'KV',
-        address: 'RYTyftx9JEmzaXqQzpBBjJsHe9ZwLpzwCj',
-        kv: true,
-        maxlength: 100,
-        full: true,
-      })
-      .then((txhistory) => {
-        let _kvElectrum = {};
-
-        for (let i = 0; i < txhistory.result.length; i++) {
-          try {
-            const _kvElectrumItem = JSON.parse(txhistory.result[i].opreturn.kvDecoded.content.body);
-            _kvElectrum = deepmerge(_kvElectrum, _kvElectrumItem);
-          } catch (e) {
-            shepherd.log(`kv electrum servers parse error ${e}`, true);
-            // shepherd.log(txhistory.result[i].opreturn.kvDecoded.content.body);
-          }
-        }
-
-        shepherd.log(`kv electrum servers, got ${Object.keys(_kvElectrum).length} records`, true);
-
-        for (let key in _ticker) {
-          _kvElectrum[_ticker[key]] = _kvElectrum[key];
-          delete _kvElectrum[key];
-        }
-
-        if (req.query.save) {
-          shepherd.saveKvElectrumServersCache(_kvElectrum);
-        }
-
-        res.end(JSON.stringify({
-          msg: 'success',
-          result: _kvElectrum,
-        }));
-      });
-    } else {
-      const errorObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(errorObj));
-    }
-  });*/
 
   return shepherd;
 };

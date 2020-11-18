@@ -36,87 +36,67 @@ module.exports = (api) => {
     };
   };
 
-  api.post('/native/shieldcoinbase', (req, res, next) => {
-    const token = req.body.token;
+  api.setPost('/native/shieldcoinbase', (req, res, next) => {
+    const {
+      chainTicker,
+      fromAddress,
+      toAddress,
+      fee,
+      limit
+    } = req.body;
 
-    if (api.checkToken(token)) {
-      const {
-        chainTicker,
-        fromAddress,
-        toAddress,
-        fee,
-        limit
-      } = req.body;
+    const preflightRes = api.native.shieldCoinbasePreflight(
+      chainTicker,
+      toAddress,
+      fromAddress,
+      fee,
+      limit
+    )
 
-      const preflightRes = api.native.shieldCoinbasePreflight(
-        chainTicker,
-        toAddress,
-        fromAddress,
-        fee,
-        limit
-      )
-
-      api.native.callDaemon(chainTicker, 'z_shieldcoinbase', preflightRes.txParams, token)
-      .then(shieldObj => {
-        const retObj = {
-          msg: "success",
-          result: { ...preflightRes, ...shieldObj }
-        };
-        res.end(JSON.stringify(retObj));
-      }).catch(e => {
-        const retObj = {
-          msg: "error",
-          result: e.message
-        };
-        res.end(JSON.stringify(retObj));
-      })
-    } else {
+    api.native.callDaemon(chainTicker, 'z_shieldcoinbase', preflightRes.txParams)
+    .then(shieldObj => {
+      const retObj = {
+        msg: "success",
+        result: { ...preflightRes, ...shieldObj }
+      };
+      res.send(JSON.stringify(retObj));
+    }).catch(e => {
       const retObj = {
         msg: "error",
-        result: "unauthorized access"
+        result: e.message
       };
-      res.end(JSON.stringify(retObj));
-    }
+      res.send(JSON.stringify(retObj));
+    })
   });
 
-  api.post("/native/shieldcoinbase_preflight", (req, res, next) => {
-    const token = req.body.token;
+  api.setPost("/native/shieldcoinbase_preflight", (req, res, next) => {
+    const {
+      chainTicker,
+      fromAddress,
+      toAddress,
+      fee,
+      limit
+    } = req.body;
 
-    if (api.checkToken(token)) {
-      const {
-        chainTicker,
-        fromAddress,
-        toAddress,
-        fee,
-        limit
-      } = req.body;
-
-      try {
-        res.end(
-          JSON.stringify({
-            msg: "success",
-            result: api.native.shieldCoinbasePreflight(
-              chainTicker,
-              toAddress,
-              fromAddress,
-              fee,
-              limit
-            )
-          })
-        );
-      } catch (e) {
-        const retObj = {
-          msg: "error",
-          result: e.message
-        };
-        res.end(JSON.stringify(retObj));
-      }
-    } else {
+    try {
+      res.send(
+        JSON.stringify({
+          msg: "success",
+          result: api.native.shieldCoinbasePreflight(
+            chainTicker,
+            toAddress,
+            fromAddress,
+            fee,
+            limit
+          )
+        })
+      );
+    } catch (e) {
       const retObj = {
         msg: "error",
-        result: "unauthorized access"
+        result: e.message
       };
-      res.end(JSON.stringify(retObj));
+      res.send(JSON.stringify(retObj));
     }
   });
     

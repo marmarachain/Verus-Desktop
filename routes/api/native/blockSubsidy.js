@@ -1,9 +1,9 @@
 const Promise = require('bluebird');
 
 module.exports = (api) => {    
-  api.native.get_blocksubsidy = (coin, token, height) => {
+  api.native.get_blocksubsidy = (coin, height) => {
     return new Promise((resolve, reject) => {      
-      api.native.callDaemon(coin, 'getblocksubsidy', height == null ? [] : [height], token)
+      api.native.callDaemon(coin, 'getblocksubsidy', height == null ? [] : [height])
       .then((blocksubsidy) => {
         resolve(blocksubsidy)
       })
@@ -13,18 +13,18 @@ module.exports = (api) => {
     });
   };
 
-  api.post('/native/get_blocksubsidy', (req, res, next) => {
-    const { token, height } = req.body
+  api.setPost('/native/get_blocksubsidy', (req, res, next) => {
+    const { height } = req.body
     const coin = req.body.chainTicker;
     
-    api.native.get_blocksubsidy(coin, token, height)
+    api.native.get_blocksubsidy(coin, height)
     .then((blocksubsidy) => {
       const retObj = {
         msg: 'success',
         result: blocksubsidy,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
     .catch(error => {
       const retObj = {
@@ -32,7 +32,7 @@ module.exports = (api) => {
         result: error.message,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
   });
 

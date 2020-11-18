@@ -288,7 +288,13 @@ class ElectrumJSCore extends Client {
 
   // ref: http://docs.electrum.org/en/latest/protocol.html
   serverVersion(client_name, protocol_version) {
-    return this.request('server.version', [client_name, protocol_version]);
+    let params = [];
+    if (client_name) params.push(client_name);
+    else params.push('');
+
+    if (protocol_version) params.push(protocol_version.toString());
+
+    return this.request('server.version', params);
   }
 
   serverBanner() {

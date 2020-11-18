@@ -1,9 +1,9 @@
 const Promise = require('bluebird');
 
 module.exports = (api) => {
-  api.get('/get_networkfees', (req, res, next) => {
+  api.setGet('/get_networkfees', (req, res, next) => {
     if (!req.query.chainTicker) {
-      res.end(JSON.stringify({msg: 'error', result: "No coin passed to get_networkfees"}));
+      res.send(JSON.stringify({msg: 'error', result: "No coin passed to get_networkfees"}));
     }
     
     api.electrum.get_networkfees(req.query.chainTicker)
@@ -13,7 +13,7 @@ module.exports = (api) => {
         result: feesObj
       };
 
-      res.end(JSON.stringify(retObj));
+      res.send(JSON.stringify(retObj));
     })
     .catch(e => {
       const retObj = {
@@ -21,7 +21,7 @@ module.exports = (api) => {
         result: e.message
       };
 
-      res.end(JSON.stringify(retObj));
+      res.send(JSON.stringify(retObj));
     })
   });
 

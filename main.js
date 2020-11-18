@@ -9,18 +9,13 @@ const {
 const app = electron.app;
 const BrowserWindow = electron.BrowserWindow;
 const path = require('path');
-const url = require('url');
 const os = require('os');
 const { randomBytes } = require('crypto');
-const md5 = require('agama-wallet-lib/src/crypto/md5');
-const exec = require('child_process').exec;
+const version = require('./version.json')
 const portscanner = require('portscanner');
 const osPlatform = os.platform();
-const fixPath = require('fix-path');
 const express = require('express');
 const bodyParser = require('body-parser');
-const fsnode = require('fs');
-const fs = require('fs-extra');
 const Promise = require('bluebird');
 const arch = require('arch');
 const chainParams = require('./routes/chainParams');
@@ -31,6 +26,18 @@ let staticVar = {}; // static shared main -> renderer vars
 ipcMain.on('staticVar', (event, arg) => {
 	event.sender.send('staticVar', !arg ? staticVar : staticVar[arg]);
 });
+
+global.USB_HOME_DIR = path.resolve(__dirname, './usb_home')
+
+// TODO: Implement in a way less likely to confuse people
+// USB Mode sets all necesarry files/folders to be in app parent directory
+global.USB_MODE = false
+
+global.HOME = global.USB_MODE
+    ? global.USB_HOME_DIR
+    : os.platform() === "win32"
+    ? process.env.APPDATA
+    : process.env.HOME;
 
 if (osPlatform === 'linux') {
 	process.env.ELECTRON_RUN_AS_NODE = true;
@@ -47,19 +54,14 @@ const { appConfig } = api
 /*const nativeCoindList = api.scanNativeCoindBins(); // dex related
 api.setVar('nativeCoindList', nativeCoindList);*/
 
-let localVersion;
-let localVersionFile = api.readVersionFile();
-localVersion = localVersionFile.split(localVersionFile.indexOf('\r\n') > -1 ? '\r\n' : '\n');
-
 const appBasicInfo = {
 	name: 'Verus Desktop',
-	version: localVersion[0],
+	mode: global.USB_MODE ? 'usb' : 'standard',
+	version: version.version,
 };
 
 app.setName(appBasicInfo.name);
 app.setVersion(appBasicInfo.version);
-
-api.createAgamaDirs();
 
 // parse argv
 let _argv = {};
@@ -84,9 +86,13 @@ for (let i = 0; i < process.argv.length; i++) {
 	}
 }
 
-const appSessionHash = _argv.token ? _argv.token : randomBytes(32).toString('hex');
+// Two so post and get can be called concurrently, TODO: create a more performance efficient way
+const appSecretToken = randomBytes(32).toString('hex')
+const apiShieldKey = randomBytes(32).toString('hex')
+
 const _spvFees = api.getSpvFees();
 
+api.writeLog('usb mode: ' + global.USB_MODE, 'init');
 api.writeLog(`app info: ${appBasicInfo.name} ${appBasicInfo.version}`);
 api.writeLog('sys info:');
 api.writeLog(`totalmem_readable: ${formatBytes(os.totalmem())}`);
@@ -97,11 +103,7 @@ api.writeLog(`platform: ${osPlatform}`);
 api.writeLog(`os_release: ${os.release()}`);
 api.writeLog(`os_type: ${os.type()}`);
 
-if (process.argv.indexOf('devmode') > -1 ||
-		process.argv.indexOf('nogui') > -1) {
-	api.log(`app init ${appSessionHash}`, 'init');
-}
-
+api.log('usb mode: ' + global.USB_MODE, 'init');
 api.log(`app info: ${appBasicInfo.name} ${appBasicInfo.version}`, 'init');
 api.log('sys info:', 'init');
 api.log(`totalmem_readable: ${formatBytes(os.totalmem())}`, 'init');
@@ -239,7 +241,7 @@ if (os.platform() === 'win32') {
 }
 
 // close app
-function forseCloseApp() {
+function forceCloseApp() {
 	forceQuitApp = true;
 	app.quit();
 }
@@ -248,7 +250,7 @@ if (!_argv.nogui ||
 		(_argv.nogui && _argv.nogui === '1')) {
 	app.on('ready', () => createWindow('open', process.argv.indexOf('dexonly') > -1 ? true : null));
 } else {
-	server.listen(appConfig.general.main.agamaPort, () => {
+	server.listen(appConfig.general.main.agamaPort, async () => {
 		api.log(`guiapp and sockets.io are listening on port ${appConfig.general.main.agamaPort}`, 'init');
 		api.writeLog(`guiapp and sockets.io are listening on port ${appConfig.general.main.agamaPort}`, 'init');
 		// start sockets.io
@@ -256,7 +258,6 @@ if (!_argv.nogui ||
 	});
 	api.setIO(io); // pass sockets object to api router
 	api.setVar('appBasicInfo', appBasicInfo);
-	api.setVar('appSessionHash', appSessionHash);
 }
 
 function createAppCloseWindow() {
@@ -267,11 +268,16 @@ function createAppCloseWindow() {
 		frame: false,
 		icon: agamaIcon,
 		show: false,
+		contextIsolation: true
 	});
 
 	appCloseWindow.setResizable(false);
 
-	appCloseWindow.loadURL(appConfig.general.main.dev || process.argv.indexOf('devmode') > -1 ? `http://${appConfig.general.main.host}:${appConfig.general.main.agamaPort}/gui/startup/app-closing.html` : `file://${__dirname}/gui/startup/app-closing.html`);
+	appCloseWindow.loadURL(
+    appConfig.general.main.dev || process.argv.indexOf("devmode") > -1
+      ? `http://${appConfig.general.main.host}:${appConfig.general.main.agamaPort}/gui/startup/app-closing.html`
+      : `file://${__dirname}/gui/startup/app-closing.html`
+  );
 
   appCloseWindow.webContents.on('did-finish-load', () => {
     setTimeout(() => {
@@ -317,7 +323,7 @@ function createAppCloseWindow() {
 		]);
 
 		// check if agama is already running
-		portscanner.checkPortStatus(appConfig.general.main.agamaPort, '127.0.0.1', (error, status) => {
+		portscanner.checkPortStatus(appConfig.general.main.agamaPort, '127.0.0.1', async (error, status) => {
 			// Status is 'open' if currently in use or 'closed' if available
 			if (status === 'closed') {
 				server.listen(appConfig.general.main.agamaPort, () => {
@@ -333,19 +339,22 @@ function createAppCloseWindow() {
 					height: closeAppAfterLoading ? 1 : 850,
 					icon: agamaIcon,
 					show: false,
+					contextIsolation: true
 				});
 
 				mainWindow.loadURL(appConfig.general.main.dev || process.argv.indexOf('devmode') > -1 ? 'http://127.0.0.1:3000' : `file://${__dirname}/gui/Verus-Desktop-GUI/react/build/index.html`);
 
 				api.setIO(io); // pass sockets object to api router
 				api.setVar('appBasicInfo', appBasicInfo);
-				api.setVar('appSessionHash', appSessionHash);
+				api.setVar('appSecretToken', appSecretToken);
+				api.setVar('apiShieldKey', apiShieldKey);
 
 				// load our index.html (i.e. Agama GUI)
 				api.writeLog('show agama gui');
-				const _assetChainPorts = require('./routes/ports.js');
+        const _assetChainPorts = require('./routes/ports.js');
+        const nspvPorts = api.nspvPorts;
 
-				staticVar.arch = localVersion[1].indexOf('-spv-only') > -1 ? 'spv-only' : arch();
+				staticVar.arch = version.minVersion.indexOf('-spv-only') > -1 ? 'spv-only' : arch();
 				staticVar.appBasicInfo = appBasicInfo;
 				staticVar.assetChainPorts = _assetChainPorts;
 				staticVar.appConfigSchema = api.appConfigSchema;
@@ -353,13 +362,15 @@ function createAppCloseWindow() {
 				staticVar.isWindows = os.platform() === 'win32' ? true : false;
 				staticVar.spvFees = _spvFees;
 				staticVar.electrumServers = api.electrumServersFlag;
-				staticVar.chainParams = chainParams;
+        staticVar.chainParams = chainParams;
+        staticVar.nspvPorts = nspvPorts;
 
 				let _global = {
 					appConfig,
-					arch: localVersion[1].indexOf('-spv-only') > -1 ? 'spv-only' : arch(),
+					arch: version.minVersion.indexOf('-spv-only') > -1 ? 'spv-only' : arch(),
 					appBasicInfo,
-					appSessionHash,
+					appSecretToken,
+					apiShieldKey,
 					testLocation: api.testLocation,
 					kmdMainPassiveMode: api.kmdMainPassiveMode,
 					getAppRuntimeLog: api.getAppRuntimeLog,
@@ -407,10 +418,11 @@ function createAppCloseWindow() {
 					frame: false,
 					icon: agamaIcon,
 					show: false,
+					contextIsolation: true
 				});
 
 				mainWindow.setResizable(false);
-				mainWindow.forseCloseApp = forseCloseApp;
+				mainWindow.forceCloseApp = forceCloseApp;
 
 				willQuitApp = true;
 				server.listen(appConfig.general.main.agamaPort + 1, () => {
@@ -423,12 +435,14 @@ function createAppCloseWindow() {
 
 		  mainWindow.webContents.on('did-finish-load', () => {
 		    setTimeout(() => {
-		      mainWindow.show();
+					mainWindow.show();
+					
+					api.promptUpdate(mainWindow)
 		    }, 40);
 		  });
 
 		  /*loadingWindow.on('close', (e) => {
-		  	if (!forseCloseApp) {
+		  	if (!forceCloseApp) {
 			    if (willQuitApp) {
 			      loadingWindow = null;
 			    } else {
@@ -436,7 +450,7 @@ function createAppCloseWindow() {
 			      e.preventDefault();
 			    }
 			  }
-		  });*/
+			});*/
 
 			mainWindow.webContents.on('context-menu', (e, params) => { // context-menu returns params
 				const {
@@ -470,7 +484,8 @@ function createAppCloseWindow() {
 						api.log('Closing Main Window...', 'quit');
 						api.writeLog('exiting app...');
 
-						api.quitKomodod(appConfig.general.native.cliStopTimeout);
+            api.quitKomodod(appConfig.general.native.cliStopTimeout);
+            api.stopNSPVDaemon('all');
 
 						const result = 'Closing daemons: done';
 
@@ -502,6 +517,7 @@ function createAppCloseWindow() {
 					return new Promise((resolve, reject) => {
 						const result = 'Quiting App: done';
 
+						forceQuitApp = true
 						app.quit();
 						api.log(result, 'quit');
 						resolve(result);
@@ -520,14 +536,14 @@ function createAppCloseWindow() {
 				if (process.argv.indexOf('dexonly') > -1) {
 					api.killRogueProcess('marketmaker');
 				}
-				if (!Object.keys(api.coindInstanceRegistry).length ||
+				if (!Object.keys(api.startedDaemonRegistry).length ||
 						!appConfig.general.native.stopNativeDaemonsOnQuit) {
 					closeApp();
 				} else {
 					createAppCloseWindow();
 					api.quitKomodod(appConfig.general.native.cliStopTimeout);
 					_appClosingInterval = setInterval(() => {
-						if (!Object.keys(api.coindInstanceRegistry).length) {
+						if (!Object.keys(api.startedDaemonRegistry).length) {
 							closeApp();
 						}
 					}, 1000);
@@ -542,15 +558,28 @@ function createAppCloseWindow() {
 	}
 }
 
-app.on('window-all-closed', () => {
-	// if (os.platform() !== 'win32') { ig.kill(); }
-	// in osx apps stay active in menu bar until explictly closed or quitted by CMD Q
-	// so we do not kill the app --> for the case user clicks again on the iguana icon
-	// we open just a new window and respawn iguana proc
-	/*if (process.platform !== 'darwin' || process.platform !== 'linux' || process.platform !== 'win32') {
-		app.quit()
-	}*/
-});
+app.on('web-contents-created', (event, contents) => {
+  contents.on('will-attach-webview', (event, webPreferences, params) => {
+    // Strip away preload scripts if unused or verify their location is legitimate
+    delete webPreferences.preload
+    delete webPreferences.preloadURL
+
+    // Disable Node.js integration
+    webPreferences.nodeIntegration = false
+
+    event.preventDefault()
+	})
+	
+	contents.on('will-navigate', (event, navigationUrl) => {
+		event.preventDefault()
+	})
+	
+	contents.on('new-window', async (event, navigationUrl) => {
+    // In this example, we'll ask the operating system
+    // to open this event's url in the default browser.
+    event.preventDefault()
+  })
+})
 
 // Emitted before the application starts closing its windows.
 // Calling event.preventDefault() will prevent the default behaviour, which is terminating the application.
@@ -567,7 +596,7 @@ app.on('will-quit', (event) => {
 	if (!forceQuitApp) {
 		// loading window is still open
 		api.log('will-quit while loading window active', 'quit');
-		// event.preventDefault();
+		event.preventDefault();
 	}
 });
 

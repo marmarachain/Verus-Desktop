@@ -1,9 +1,8 @@
 // TODO: CLEANUP THIS FILE
-
-const electron = require('electron');
 const express = require('express');
-const app = electron.app;
 let api = express.Router();
+
+api = require('./api/auth.js')(api);
 
 api.setconf = require('../private/setconf.js');
 api.nativeCoind = require('./nativeCoind.js');
@@ -14,12 +13,13 @@ api._appConfig = require('./appConfig.js');
 api.chainParams = require('./chainParams')
 
 api.coinsInitializing = [];
-api.coindInstanceRegistry = {};
+api.startedDaemonRegistry = {};
 api.confFileIndex = {};
 api.logFileIndex = {};
 api.coindStdout = {};
 api.guiLog = {};
 api.rpcConf = {};
+api.customKomodoNetworks = {};
 api.appRuntimeLog = [];
 api.lockDownAddCoin = false;
 api._isWatchOnly = false;
@@ -58,6 +58,9 @@ const {
 api.electrumServers = electrumServers;
 api.electrumServersFlag = electrumServersFlag;
 api.electrumServersV1_4 = {};
+api.nspvProcesses = {};
+api.nspvPorts = {};
+api.dpowCoins = require('agama-wallet-lib/src/electrum-servers-dpow');
 
 api.CONNECTION_ERROR_OR_INCOMPLETE_DATA = 'connection error or incomplete data';
 
@@ -70,11 +73,12 @@ api.pathsAgama();
 api.pathsDaemons();
 
 // core
+api = require('./api/data_files/jsonFileManager')(api);
 api = require('./api/log.js')(api);
 api = require('./api/config.js')(api);
 api = require('./api/users.js')(api);
-api = require('./api/nameCommitments.js')(api);
 api = require('./api/init.js')(api);
+api = require('./api/utility_apis/checkUpdates')(api);
 
 api.createAgamaDirs();
 api.appConfig = api.loadLocalConfig();
@@ -107,24 +111,25 @@ api = require('./api/electrum/info.js')(api);
 api = require('./api/electrum/addresses.js')(api);
 api = require('./api/electrum/transactions.js')(api);
 api = require('./api/electrum/parseTxAddresses.js')(api);
-api = require('./api/electrum/decodeRawtx.js')(api);
 api = require('./api/electrum/block.js')(api);
-api = require('./api/electrum/createtx.js')(api);
-api = require('./api/electrum/createtx-split.js')(api);
-api = require('./api/electrum/createtx-multi.js')(api);
 api = require('./api/electrum/interest.js')(api);
 api = require('./api/electrum/listunspent.js')(api);
-api = require('./api/electrum/estimate.js')(api);
 api = require('./api/electrum/insight.js')(api);
 api = require('./api/electrum/cache.js')(api);
 api = require('./api/electrum/proxy.js')(api);
 api = require('./api/electrum/servers.js')(api);
-api = require('./api/electrum/csv.js')(api);
 api = require('./api/electrum/utils.js')(api);
 api = require('./api/electrum/remove')(api);
 api = require('./api/electrum/send.js')(api);
+api = require('./api/electrum/connectionManager.js')(api);
 
-//native
+// init electrum connection manager loop
+api.initElectrumManager();
+
+// nspv
+api = require('./api/electrum/nspv.js')(api);
+
+// native
 api = require('./api/native/addrBalance.js')(api);
 api = require('./api/native/coins')(api);
 api = require('./api/native/callDaemon')(api);
@@ -142,6 +147,10 @@ api = require('./api/native/nameRegistration.js')(api);
 api = require('./api/native/idRegistration.js')(api);
 api = require('./api/native/idRevocation.js')(api);
 api = require('./api/native/idInformation.js')(api);
+api = require('./api/native/getCurrencies.js')(api);
+api = require('./api/native/getCurrency.js')(api);
+api = require('./api/native/getConversionPaths.js')(api);
+api = require('./api/native/currencyGraylist.js')(api);
 api = require('./api/native/idRecovery.js')(api);
 api = require('./api/native/signdata.js')(api);
 api = require('./api/native/verifydata.js')(api);
@@ -160,32 +169,21 @@ api = require('./api/network/supply/zec/zecCoinSupply')(api)
 api = require('./api/network/supply/coinSupply')(api)
 
 // core
-api = require('./api/dashboardUpdate.js')(api);
 api = require('./api/binsUtils.js')(api);
 api = require('./api/downloadUtil.js')(api);
 api = require('./api/pin.js')(api);
-api = require('./api/downloadBins.js')(api);
-api = require('./api/downloadPatch.js')(api);
 api = require('./api/downloadZcparams.js')(api);
 api = require('./api/coinsList.js')(api);
 api = require('./api/rpc.js')(api);
-api = require('./api/kickstart.js')(api);
-api = require('./api/debugLog.js')(api);
 api = require('./api/confMaxconnections.js')(api);
 api = require('./api/appInfo.js')(api);
 api = require('./api/conf.js')(api);
 api = require('./api/daemonControl.js')(api);
-api = require('./api/auth.js')(api);
-api = require('./api/coindWalletKeys.js')(api);
 api = require('./api/addressBook.js')(api);
-api = require('./api/dice.js')(api);
 api = require('./api/system.js')(api);
 
-// elections
-api = require('./api/elections.js')(api);
-
-// explorer
-// api = require('./api/explorer/overview.js')(api);
+// Utility APIs
+api = require('./api/utility_apis/csvExport.js')(api);
 
 // kv
 api = require('./api/kv.js')(api);
@@ -198,6 +196,7 @@ api.eth = {
   tokenInfo: {},
   abi: {},
 };
+api = require('./api/eth/contracts/contracts.js')(api);
 api = require('./api/eth/auth.js')(api);
 api = require('./api/eth/keys.js')(api);
 api = require('./api/eth/network.js')(api);
@@ -207,24 +206,15 @@ api = require('./api/eth/info')(api);
 api = require('./api/eth/transactions.js')(api);
 api = require('./api/eth/coins.js')(api);
 api = require('./api/eth/gasPrice.js')(api);
-api = require('./api/eth/createtx.js')(api);
 api = require('./api/eth/utils.js')(api);
 api = require('./api/eth/remove')(api);
 api = require('./api/eth/send.js')(api);
-
-// exchanges
-api.exchangesCache = {
-  coinswitch: {},
-};
-api = require('./api/exchange/exchange')(api);
-api = require('./api/exchange/coinswitch/coinswitch')(api);
-api = require('./api/exchange/changelly/changelly')(api);
-api.loadLocalExchangesCache();
+api = require('./api/eth/contracts/rfox/migration')(api);
 
 api.printDirs();
 
 // default route
-api.get('/', (req, res, next) => {
+api.setGet('/', (req, res, next) => {
   res.send('Agama app server2');
 });
 
@@ -255,5 +245,8 @@ api.checkCoinConfigIntegrity();
 if (api.appConfig.general.main.loadCoinsFromStorage) {
   api.loadCoinsListFromFile();
 }
+
+// Diagnostic and debugging info
+api = require('./api/diagnostics.js')(api);
 
 module.exports = api;

@@ -1,10 +1,10 @@
 const Promise = require('bluebird');
 
 module.exports = (api) => {    
-  api.native.get_identities = (coin, token, includeCanSpend = true, includeCanSign = false, includeWatchOnly = false) => {
+  api.native.get_identities = (coin, includeCanSpend = true, includeCanSign = false, includeWatchOnly = false) => {
     const promiseArr = [
-      api.native.callDaemon(coin, 'listidentities', [includeCanSpend, includeCanSign, includeWatchOnly], token),
-      api.native.callDaemon(coin, "z_gettotalbalance", [], token)
+      api.native.callDaemon(coin, 'listidentities', [includeCanSpend, includeCanSign, includeWatchOnly]),
+      api.native.callDaemon(coin, "z_gettotalbalance", [])
     ]
 
     return new Promise((resolve, reject) => {      
@@ -22,7 +22,7 @@ module.exports = (api) => {
           let useCache = true
 
           try {
-            const walletinfo = await api.native.callDaemon(coin, "getwalletinfo", [], token)
+            const walletinfo = await api.native.callDaemon(coin, "getwalletinfo", [])
             txcount = walletinfo.txcount
           } catch (e) {
             useCache = false
@@ -37,13 +37,13 @@ module.exports = (api) => {
               let zBalance = null
 
               const iBalance = Number(
-                await api.native.get_addr_balance(coin, token, iAddr, useCache, txcount, totalBalance)
+                await api.native.get_addr_balance(coin, iAddr, useCache, txcount, totalBalance)
               )
               
               if (zAddr != null) {
                 try {
                   zBalance = Number(
-                    await api.native.get_addr_balance(coin, token, zAddr, useCache, txcount, totalBalance)
+                    await api.native.get_addr_balance(coin, zAddr, useCache, txcount, totalBalance)
                   );
                 } catch (e) {
                   api.log(e, "get_identities");
@@ -96,17 +96,17 @@ module.exports = (api) => {
     });
   };
 
-  api.post('/native/get_identities', (req, res, next) => {    
-    const { token, chainTicker, includeCanSpend, includeCanSign, includeWatchOnly } = req.body
+  api.setPost('/native/get_identities', (req, res, next) => {    
+    const { chainTicker, includeCanSpend, includeCanSign, includeWatchOnly } = req.body
 
-    api.native.get_identities(chainTicker, token, includeCanSpend, includeCanSign, includeWatchOnly)
+    api.native.get_identities(chainTicker, includeCanSpend, includeCanSign, includeWatchOnly)
     .then((identities) => {
       const retObj = {
         msg: 'success',
         result: identities,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
     .catch(error => {
       const retObj = {
@@ -114,13 +114,13 @@ module.exports = (api) => {
         result: error.message,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
   });
 
-  api.native.get_identity = (coin, token, name) => {
+  api.native.get_identity = (coin, name) => {
     return new Promise((resolve, reject) => {      
-      api.native.callDaemon(coin, 'getidentity', [name], token)
+      api.native.callDaemon(coin, 'getidentity', [name])
       .then((identity) => {
         resolve(identity)
       })
@@ -130,17 +130,17 @@ module.exports = (api) => {
     });
   };
 
-  api.post('/native/get_identity', (req, res, next) => {
-    const { token, chainTicker, name } = req.body
+  api.setPost('/native/get_identity', (req, res, next) => {
+    const { chainTicker, name } = req.body
 
-    api.native.get_identity(chainTicker, token, name)
+    api.native.get_identity(chainTicker, name)
     .then((identity) => {
       const retObj = {
         msg: 'success',
         result: identity,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
     .catch(error => {
       const retObj = {
@@ -148,7 +148,7 @@ module.exports = (api) => {
         result: error.message,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
   });
  

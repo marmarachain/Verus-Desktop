@@ -5,14 +5,14 @@ const request = require('request');
 // TODO: add to atomic, use individual requests only as a fallback
 
 module.exports = (api) => {
-  api.get('/eth/gasprice', (req, res, next) => {
+  api.setGet('/eth/gasprice', (req, res, next) => {
     api._getGasPrice()
     .then((gasprice) => {
       const retObj = {
         msg: gasprice ? 'success' : 'error',
         result: gasprice ? gasprice : 'unable to get gas price',
       };
-      res.end(JSON.stringify(retObj));
+      res.send(JSON.stringify(retObj));
     });
   });
 

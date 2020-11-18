@@ -290,8 +290,8 @@ const chainParams = {
 		ac_cc: 3,
 		addnode: ['138.201.136.145'],
 	},
-	VOTE2019: {
-		ac_name: "VOTE2019",
+	VOTE2020: {
+		ac_name: "VOTE2020",
 		ac_supply: 123651638,
 		ac_public: 1,
 		addnode: ['95.213.238.98'],
@@ -302,12 +302,6 @@ const chainParams = {
 		ac_cc: 27410,
 		ac_reward: 300000000,
 		addnode: ['136.243.58.134'],
-	},
-	RFOX: {
-		ac_name: "RFOX",
-		ac_supply: 1000000000,
-		ac_reward: 100000000,
-		addnode: ['78.47.196.146'],
 	},
 	ZEXO: {
 		ac_name: "ZEXO",

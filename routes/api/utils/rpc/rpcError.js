@@ -1,3 +1,5 @@
+const { RPC_ERROR_UNKNOWN } = require("./rpcStatusCodes")
+
 class RpcError extends Error {
   constructor(code = RPC_ERROR_UNKNOWN, ...params) {
     // Pass remaining arguments (including vendor specific ones) to parent constructor

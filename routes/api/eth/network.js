@@ -1,7 +1,7 @@
 const ethers = require('ethers');
 
 module.exports = (api) => {  
-  api.get('/eth/network/connect', (req, res, next) => {
+  api.setGet('/eth/network/connect', (req, res, next) => {
     const network = req.query.network || 'homestead';
     const coin = req.query.coin.toUpperCase();
     const _connect = api.eth._connect(coin, network);
@@ -11,7 +11,7 @@ module.exports = (api) => {
       result: _connect,
     };
 
-    res.end(JSON.stringify(retObj));
+    res.send(JSON.stringify(retObj));
   });
 
   api.eth._connect = (coin, network) => {

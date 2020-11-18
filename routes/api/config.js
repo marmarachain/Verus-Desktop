@@ -12,7 +12,7 @@ const {
 
 module.exports = (api) => {
   api.loadLocalConfig = () => {
-    const configLocation = `${api.agamaDir}/config.json`
+    const configLocation = `${api.paths.agamaDir}/config.json`
 
     if (fs.existsSync(configLocation)) {
       try {
@@ -47,7 +47,7 @@ module.exports = (api) => {
         const localMissing = flatDefault.filter(x => {return !flatLocal.includes(x)})
 
         if (localMissing.length > 0) {
-          api.log('The local is missing the following properties! Attempting to add them in now...', 'settings');
+          api.log('The local config is missing the following properties! Attempting to add them in now...', 'settings');
           api.log(localMissing, 'settings');
 
           localMissing.forEach(propertyGroup => {
@@ -85,11 +85,11 @@ module.exports = (api) => {
   };
 
   api.saveLocalAppConf = (appSettings) => {
-    const configFileName = `${api.agamaDir}/config.json`;
+    const configFileName = `${api.paths.agamaDir}/config.json`;
 
     try {
       try {
-        _fs.accessSync(api.agamaDir, fs.constants.R_OK)
+        _fs.accessSync(api.paths.agamaDir, fs.constants.R_OK)
       } catch (e) {
         if (e.code == 'EACCES') {
           fsnode.chmodSync(configFileName, '0666');
@@ -97,21 +97,16 @@ module.exports = (api) => {
           api.log('config directory not found', 'settings');
         }
       }
-     
-      fs.writeFileSync(configFileName,
-                  JSON.stringify(appSettings)
-                  .replace(/,/g, ',\n') // format json in human readable form
-                  .replace(/":/g, '": ')
-                  .replace(/{/g, '{\n')
-                  .replace(/}/g, '\n}'), 'utf8');
 
-      
+      fs.writeFileSync(configFileName, JSON.stringify(appSettings, null, 2), 'utf8');
+
       api.log('config.json write file is done', 'settings');
-      api.log(`app config.json file is created successfully at: ${api.agamaDir}`, 'settings');
-      api.writeLog(`app config.json file is created successfully at: ${api.agamaDir}`);
+      api.log(`app config.json file is created successfully at: ${api.paths.agamaDir}`, 'settings');
+      api.writeLog(`app config.json file is created successfully at: ${api.paths.agamaDir}`);
     } catch (e) {
       api.log('error writing config', 'settings');
       api.log(e, 'settings');
+      throw e;
     }
   }
 
@@ -119,32 +114,29 @@ module.exports = (api) => {
    *  type: POST
    *  params: configObj
    */
-  api.post('/config/save', (req, res, next) => {
-    if (api.checkToken(req.body.token)) {
-      if (!req.body.configObj) {
-        const retObj = {
-          msg: 'error',
-          result: 'no configObj provided',
-        };
-
-        res.end(JSON.stringify(retObj));
-      } else {
-        api.saveLocalAppConf(req.body.configObj);
-
-        const retObj = {
-          msg: 'success',
-          result: 'config saved',
-        };
-
-        res.end(JSON.stringify(retObj));
-      }
-    } else {
+  api.setPost('/config/save', (req, res, next) => {
+    if (!req.body.configObj) {
       const retObj = {
         msg: 'error',
-        result: 'unauthorized access',
+        result: 'no configObj provided',
       };
 
-      res.end(JSON.stringify(retObj));
+      res.send(JSON.stringify(retObj));
+    } else {
+      try {
+        api.saveLocalAppConf(req.body.configObj);
+      } catch(e) {
+        res.send(JSON.stringify({
+          msg: 'error',
+          result: e.message,
+        }));
+        return
+      }
+
+      res.send(JSON.stringify({
+        msg: 'success',
+        result: 'config saved',
+      }));
     }
   });
 
@@ -152,50 +144,41 @@ module.exports = (api) => {
    *  type: POST
    *  params: none
    */
-  api.post('config/reset', (req, res, next) => {
-    if (api.checkToken(req.body.token)) {
-      api.saveLocalAppConf(api.defaultAppConfig);
+  api.setPost('config/reset', (req, res, next) => {
+    api.saveLocalAppConf(api.defaultAppConfig);
 
-      const retObj = {
-        msg: 'success',
-        result: 'config saved',
-      };
+    const retObj = {
+      msg: 'success',
+      result: 'config saved',
+    };
 
-      res.end(JSON.stringify(retObj));
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
+    res.send(JSON.stringify(retObj));
   });
 
   /*
    *  type: GET
    *
    */
-  api.get('/config/load', (req, res, next) => {
+  api.setGet('/config/load', (req, res, next) => {
     const retObj = {
       msg: 'success',
       result: api.loadLocalConfig(),
     };
 
-    res.send(retObj);
+    res.send(JSON.stringify(retObj));
   });
 
   /*
    *  type: GET
    *
    */
-  api.get('/config/schema', (req, res, next) => {
+  api.setGet('/config/schema', (req, res, next) => {
     const retObj = {
       msg: 'success',
       result: api.appConfigSchema,
     };
 
-    res.send(retObj);
+    res.send(JSON.stringify(retObj));
   });
 
   api.testLocation = (path) => {

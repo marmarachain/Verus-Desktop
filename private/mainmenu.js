@@ -6,6 +6,8 @@ const {
   pathsAgama,
   pathsDaemons,
 } = require('../routes/api/pathsUtil');
+const { createFetchBoostrapWindow } = require('../routes/children/fetch-bootstrap/window');
+const { appConfig, promptUpdate, generateDiagnosticPacket } = require('../routes/api');
 
 const template = [
   {
@@ -92,7 +94,7 @@ const template = [
   },
   {
     role: 'help',
-    label: 'Debug',
+    label: 'Help',
     submenu: [
       // TODO: Reimplement
       //{
@@ -107,6 +109,12 @@ const template = [
           shell.openExternal('https://discord.gg/VRKMP2S');
         }
       },
+      {
+        label: 'Verus Wiki',
+        click (item, focusedWindow) {
+          shell.openExternal('https://wiki.veruscoin.io/#!index.md');
+        }
+      },
       // ref: https://github.com/sindresorhus/new-github-issue-url
       {
         label: 'Add Github issue',
@@ -117,21 +125,39 @@ const template = [
       {
         label: 'Show Verus Desktop Wallet data folder',
         click (item, focusedWindow) {
-          shell.openItem(pathsAgama().agamaDir);
+          shell.openItem(pathsAgama().paths.agamaDir);
         }
       },
       {
         label: 'Show Verus data folder (default)',
         click (item, focusedWindow) {
-          shell.openItem(pathsDaemons().vrscDir);
+          shell.openItem(pathsDaemons().paths.vrscDataDir);
         }
       },
       {
         label: 'Show binary folder',
         click (item, focusedWindow) {
-          shell.openItem(pathsDaemons().komodocliDir);
+          shell.openItem(pathsDaemons().paths.assetsFolder);
         }
       },
+      {
+        label: 'Generate diagnostic packet',
+        click (item, focusedWindow) {
+          generateDiagnosticPacket(focusedWindow)
+        }
+      },
+      {
+        label: 'Bootstrap VRSC',
+        click (item, focusedWindow) {
+          createFetchBoostrapWindow('VRSC', appConfig)
+        }
+      },
+      {
+        label: "Check for updates",
+        click (item, focusedWindow) {
+          promptUpdate(focusedWindow, true)
+        }
+      }
     ]
   }
 ];

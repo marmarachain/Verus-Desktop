@@ -1,7 +1,7 @@
 const ethers = require('ethers');
 
 module.exports = (api) => {  
-  api.post('/eth/auth', (req, res, next) => {
+  api.setPost('/eth/auth', (req, res, next) => {
     let seed = req.body.seed;
 
     if (!api.seed) {
@@ -28,10 +28,10 @@ module.exports = (api) => {
       result: 'success',
     };
 
-    res.end(JSON.stringify(retObj));
+    res.send(JSON.stringify(retObj));
   });
 
-  api.post('/eth/logout', (req, res, next) => {
+  api.setPost('/eth/logout', (req, res, next) => {
     api.eth.wallet = null;
     api.eth.connect = null;
     api.ethPriv = null;
@@ -45,7 +45,7 @@ module.exports = (api) => {
       result: 'success',
     };
 
-    res.end(JSON.stringify(retObj));
+    res.send(JSON.stringify(retObj));
   });
 
   return api; 

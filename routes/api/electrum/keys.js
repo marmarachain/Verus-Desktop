@@ -131,79 +131,8 @@ module.exports = (api) => {
       } catch (e) {}
     }
 
-    /*api.log(`seed: ${seed}`, true);
-    api.log(`network ${network}`, true);
-    api.log(`seedtowif priv key ${keys.priv}`, true);
-    api.log(`seedtowif pub key ${keys.pub}`, true);*/
-
     return keys;
   }
-
-  //TODO: Re-evauluate as POST or eliminate use of API token
-  /*
-  api.get('/electrum/wiftopub', (req, res, next) => {
-    if (api.checkToken(req.query.token)) {
-      const _network = api.electrumJSNetworks[req.query.coin.toLowerCase()];
-      let key = new bitcoin.ECPair.fromWIF(req.query.wif, _network, true);
-
-      keys = {
-        priv: key.toWIF(),
-        pub: key.getAddress(),
-        pubHex: key.getPublicKeyBuffer().toString('hex'),
-        fromWif: api.fromWif(key.toWIF(), _network),
-      };
-
-      const retObj = {
-        msg: 'success',
-        result: {
-          keys,
-        },
-      };
-
-      res.end(JSON.stringify(retObj));
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
-  });*/
-
-  //TODO: Re-evauluate as POST or eliminate use of API token
-  /*
-  api.get('/electrum/pubkey/check', (req, res, next) => {
-    if (api.checkToken(req.query.token)) {
-      const address = api.pubkeyToAddress(req.query.pubkey, req.query.coin);
-
-      if (address) {
-        const retObj = {
-          msg: 'success',
-          result: {
-            pubkey: req.query.pubkey,
-            address,
-          },
-        };
-
-        res.end(JSON.stringify(retObj));
-      } else {
-        const retObj = {
-          msg: 'error',
-          result: 'wrong pubkey or coin param',
-        };
-
-        res.end(JSON.stringify(retObj));
-      }
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
-  });*/
 
   api.pubkeyToAddress = (pubkey, coin) => {
     try {
@@ -218,60 +147,6 @@ module.exports = (api) => {
       return false;
     }
   };
-
-  api.post('/electrum/seedtowif', (req, res, next) => {
-    if (api.checkToken(req.body.token)) {
-      const keys = api.seedToWif(
-        req.body.seed,
-        req.body.network.toLowerCase(),
-        req.body.iguana
-      );
-
-      const retObj = {
-        msg: 'success',
-        result: {
-          keys,
-        },
-      };
-
-      res.end(JSON.stringify(retObj));
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
-  });
-
-  //TODO: Re-evauluate as POST or eliminate use of API token
-  /*
-  api.get('/electrum/seedtowif', (req, res, next) => {
-    if (api.checkToken(req.query.token)) {
-      const keys = api.seedToWif(
-        req.query.seed,
-        req.query.network.toLowerCase(),
-        req.query.iguana
-      );
-
-      const retObj = {
-        msg: 'success',
-        result: {
-          keys,
-        },
-      };
-
-      res.end(JSON.stringify(retObj));
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
-  });*/
 
   api.getCoinByPub = (address, coin) => {
     const _skipNetworks = [
@@ -314,105 +189,22 @@ module.exports = (api) => {
     }
   };
 
-  api.get('/electrum/keys/addressversion', (req, res, next) => {
+  api.setGet('/electrum/keys/addressversion', (req, res, next) => {
     const retObj = {
       msg: 'success',
       result: getAddressVersion(req.query.address),
     };
 
-    res.end(JSON.stringify(retObj));
+    res.send(JSON.stringify(retObj));
   });
 
-  api.get('/electrum/keys/validateaddress', (req, res, next) => {
+  api.setGet('/electrum/keys/validateaddress', (req, res, next) => {
     const retObj = {
       msg: 'success',
       result: addressVersionCheck(networks[req.query.network.toLowerCase()] || networks.kmd, req.query.address),
     };
 
-    res.end(JSON.stringify(retObj));
-  });
-
-  api.post('/electrum/keys', (req, res, next) => {
-    if (api.checkToken(req.body.token)) {
-      let _matchingKeyPairs = 0;
-      let _totalKeys = 0;
-      let _electrumKeys = {};
-      let _seed = req.body.seed;
-      let _wifError = false;
-
-      if (api.seed === _seed) {
-        _seed = seedToPriv(_seed, 'btc');
-
-        for (let key in api.electrum.coinData) {
-          if (key !== 'auth') {
-            let isWif = false;
-            let priv;
-            let pub;
-
-            try {
-              bs58check.decode(_seed);
-              isWif = true;
-            } catch (e) {}
-
-            const _network = api.getNetworkData(key);
-
-            if (isWif) {
-              try {
-                const _key = bitcoin.ECPair.fromWIF(_seed, _network, true);
-                priv = _key.toWIF();
-                pub = _key.getAddress();
-
-                _electrumKeys[key] = {
-                  priv,
-                  pub,
-                };
-              } catch (e) {
-                _wifError = true;
-                break;
-              }
-            } else {
-              const _keys = api.seedToWif(_seed, _network, req.body.iguana);
-
-              _electrumKeys[key] = {
-                priv: _keys.priv,
-                pub: _keys.pub,
-              };
-            }
-          }
-        }
-
-        if (api.eth.wallet &&
-            api.eth.wallet.signingKey) {
-          for (let key in api.eth.coins) {
-            _electrumKeys[key] = {
-              pub: api.eth.wallet.signingKey.address,
-              priv: api.eth.wallet.signingKey.privateKey,
-            };
-          }
-        }
-
-        const retObj = {
-          msg: Object.keys(_electrumKeys).length ? 'success' : 'error',
-          result: Object.keys(_electrumKeys).length ? { keys: _electrumKeys, seed: api.seed } : false,
-        };
-
-        res.end(JSON.stringify(retObj));
-      } else {
-        const retObj = {
-          msg: 'error',
-          result: false,
-        };
-
-        res.end(JSON.stringify(retObj));
-      }
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
+    res.send(JSON.stringify(retObj));
   });
 
   api.getSpvFees = () => {
@@ -426,47 +218,6 @@ module.exports = (api) => {
 
     return _fees;
   };
-
-  api.post('/electrum/seed/bip39/match', (req, res, next) => {
-    if (api.checkToken(req.body.token)) {
-      const seed = bip39.mnemonicToSeed(req.body.seed);
-      const hdMaster = bitcoin.HDNode.fromSeedBuffer(seed, api.electrumJSNetworks.kmd);
-      const matchPattern = req.body.match;
-      const _defaultAddressDepth = req.body.addressdepth;
-      const _defaultAccountCount = req.body.accounts;
-      let _addresses = [];
-      let _matchingKey;
-
-      for (let i = 0; i < _defaultAccountCount; i++) {
-        for (let j = 0; j < 1; j++) {
-          for (let k = 0; k < _defaultAddressDepth; k++) {
-            const _key = hdMaster.derivePath(`m/44'/141'/${i}'/${j}/${k}`);
-
-            if (_key.keyPair.getAddress() === matchPattern) {
-              _matchingKey = {
-                pub: _key.keyPair.getAddress(),
-                priv: _key.keyPair.toWIF(),
-              };
-            }
-          }
-        }
-      }
-
-      const retObj = {
-        msg: 'success',
-        result: _matchingKey ? _matchingKey : 'address is not found',
-      };
-
-      res.end(JSON.stringify(retObj));
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
-  });
 
   return api;
 };

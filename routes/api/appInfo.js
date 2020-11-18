@@ -22,16 +22,16 @@ module.exports = (api) => {
     const sysInfo = api.SystemInfo();
     const releaseInfo = api.appBasicInfo;
     const dirs = {
-      agamaDir: api.agamaDir,
-      kmdDir: api.kmdDir,
+      agamaDir: api.paths.agamaDir,
+      kmdDataDir: api.paths.kmdDataDir,
       komododBin: api.komododBin,
-      configLocation: `${api.agamaDir}/config.json`,
-      cacheLocation: `${api.agamaDir}/spv-cache.json`,
+      configLocation: `${api.paths.agamaDir}/config.json`,
+      cacheLocation: `${api.paths.agamaDir}/spv-cache.json`,
     };
     let spvCacheSize = '2 Bytes';
 
     try {
-      spvCacheSize = formatBytes(fs.lstatSync(`${api.agamaDir}/spv-cache.json`).size);
+      spvCacheSize = formatBytes(fs.lstatSync(`${api.paths.agamaDir}/spv-cache.json`).size);
     } catch (e) {}
 
     return {
@@ -41,42 +41,6 @@ module.exports = (api) => {
       cacheSize: spvCacheSize,
     };
   }
-
-  /*
-   *  type: POST
-   *
-   */
-  api.post('/sysinfo', (req, res, next) => {
-    if (api.checkToken(req.body.token)) {
-      const obj = api.SystemInfo();
-      res.send(obj);
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
-  });
-
-  /*
-   *  type: POST
-   *
-   */
-  api.post('/appinfo', (req, res, next) => {
-    if (api.checkToken(req.body.token)) {
-      const obj = api.appInfo();
-      res.send(obj);
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
-  });
 
   return api;
 };

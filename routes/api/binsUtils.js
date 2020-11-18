@@ -4,32 +4,6 @@ const _fs = require('graceful-fs');
 const exec = require('child_process').exec;
 
 module.exports = (api) => {
-  // osx and linux
-  /*api.binFixRights = () => {
-    const osPlatform = os.platform();
-    const _bins = [
-      api.komododBin,
-      api.komodocliBin,
-      api.veruscliBin
-    ];
-
-    if (osPlatform === 'darwin' ||
-        osPlatform === 'linux') {
-      for (let i = 0; i < _bins.length; i++) {
-        _fs.stat(_bins[i], (err, stat) => {
-          if (!err) {
-            if (parseInt(stat.mode.toString(8), 10) !== 100775) {
-              api.log(`${_bins[i]} fix permissions`, 'native.confd');
-              fsnode.chmodSync(_bins[i], '0775');
-            }
-          } else {
-            api.log(`error: ${_bins[i]} not found`, 'native.confd');
-          }
-        });
-      }
-    }
-  }*/
-
   api.killRogueProcess = (processName) => {
     // kill rogue process copies on start
     const osPlatform = os.platform();

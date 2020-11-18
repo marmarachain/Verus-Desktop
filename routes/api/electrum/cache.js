@@ -7,13 +7,14 @@ const {
   electrumMerkleRoot,
 } = require('agama-wallet-lib/src/block');
 const btcnetworks = require('agama-wallet-lib/src/bitcoinjs-networks');
-const dpowCoins = require('agama-wallet-lib/src/electrum-servers-dpow');
 
-// TODO: dpow confs cache storage, eth/erc20 pending txs cache 
+// TODO: dpow confs cache storage, eth/erc20 pending txs cache
 
 module.exports = (api) => {
   api.updatePendingTxCache = (network, txid, options) => {
-    if (options.remove &&
+    network = network.toUpperCase();
+
+    if (options.hasOwnProperty('remove') &&
         api.electrumCache.pendingTx &&
         api.electrumCache.pendingTx[network] &&
         api.electrumCache.pendingTx[network][txid]) {
@@ -31,11 +32,19 @@ module.exports = (api) => {
         api.electrumCache.pendingTx[network] = {};
       }
 
-      api.electrumCache.pendingTx[network][txid] = {
-        pub: options.pub,
-        rawtx: options.rawtx,
-      };
-      api.log(`pending txs cache add ${network} txid ${txid} pub ${options.pub}`, 'spv.cache.pending');
+      if (!api.electrumCache.pendingTx[network][txid]) {
+        api.electrumCache.pendingTx[network][txid] = api.electrum.coinData[network.toLowerCase()].nspv ? {
+          pub: options.pub,
+          rawtx: options.rawtx,
+          value: options.value || null, // nspv pending tx workaround
+        } : {
+          pub: options.pub,
+          rawtx: options.rawtx,
+        };
+        api.log(`pending txs cache add ${network} txid ${txid} pub ${options.pub}`, 'spv.cache.pending');
+      } else {
+        api.log(`pending txs cache ${network} txid ${txid} already exists`, 'spv.cache.pending');
+      }
     }
 
     api.log('pending txs cache', 'spv.cache.pending');
@@ -52,9 +61,13 @@ module.exports = (api) => {
       
       for (let key in _txs) {
         if (_txs[key].pub === pub) {
-          _items.push({
+          _items.push(api.electrum.coinData[network.toLowerCase()].nspv ? {
             txid: key,
-            rawtx: api.electrumCache.pendingTx[network][key].rawtx, 
+            rawtx: api.electrumCache.pendingTx[network][key].rawtx,
+            value: api.electrumCache.pendingTx[network][key].value, // nspv pending tx workaround
+          } : {
+            txid: key,
+            rawtx: api.electrumCache.pendingTx[network][key].rawtx,
           });
         }
       }
@@ -74,8 +87,8 @@ module.exports = (api) => {
   };
 
   api.loadLocalSPVCache = () => {
-    if (fs.existsSync(`${api.agamaDir}/spv-cache.json`)) {
-      const localCache = fs.readFileSync(`${api.agamaDir}/spv-cache.json`, 'utf8');
+    if (fs.existsSync(`${api.paths.agamaDir}/spv-cache.json`)) {
+      const localCache = fs.readFileSync(`${api.paths.agamaDir}/spv-cache.json`, 'utf8');
 
       api.log('local spv cache loaded from local file', 'spv.cache');
 
@@ -94,9 +107,9 @@ module.exports = (api) => {
   };
 
   api.saveLocalSPVCache = () => {
-    const spvCacheFileName = `${api.agamaDir}/spv-cache.json`;
+    const spvCacheFileName = `${api.paths.agamaDir}/spv-cache.json`;
 
-    _fs.access(api.agamaDir, fs.constants.R_OK, (err) => {
+    _fs.access(api.paths.agamaDir, fs.constants.R_OK, (err) => {
       if (!err) {
         const FixFilePermissions = () => {
           return new Promise((resolve, reject) => {
@@ -117,11 +130,7 @@ module.exports = (api) => {
             const result = 'spv-cache.json write file is done';
 
             const err = fs.writeFileSync(spvCacheFileName,
-                        JSON.stringify(api.electrumCache)
-                        /*.replace(/,/g, ',\n') // format json in human readable form
-                        .replace(/":/g, '": ')
-                        .replace(/{/g, '{\n')
-                        .replace(/}/g, '\n}')*/, 'utf8');
+                        JSON.stringify(api.electrumCache), 'utf8');
 
             if (err)
               return api.log(err, 'spv.cache');
@@ -129,7 +138,7 @@ module.exports = (api) => {
             fsnode.chmodSync(spvCacheFileName, '0666');
             setTimeout(() => {
               api.log(result, 'spv.cache');
-              api.log(`spv-cache.json file is created successfully at: ${api.agamaDir}`, 'spv.cache');
+              api.log(`spv-cache.json file is created successfully at: ${api.paths.agamaDir}`, 'spv.cache');
               resolve(result);
             }, 2000);
           });
@@ -145,25 +154,16 @@ module.exports = (api) => {
    *  type: POST
    *
    */
-  api.post('/electrum/cache/delete', (req, res, next) => {
-    if (api.checkToken(req.body.token)) {
-      api.electrumCache = {};
-      api.saveLocalSPVCache();
+  api.setPost('/electrum/cache/delete', (req, res, next) => {
+    api.electrumCache = {};
+    api.saveLocalSPVCache();
 
-      const retObj = {
-        msg: 'success',
-        result: 'spv cache is removed',
-      };
+    const retObj = {
+      msg: 'success',
+      result: 'spv cache is removed',
+    };
 
-      res.end(JSON.stringify(retObj));
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
+    res.send(JSON.stringify(retObj));
   });
 
   api.getTransaction = (txid, network, ecl) => {
@@ -178,38 +178,60 @@ module.exports = (api) => {
         api.electrumCache[network].verboseTx = {};
       }
 
-      const _pendingTxFromCache = api.findPendingTxRawById(network, txid);
+      const _pendingTxFromCache = api.findPendingTxRawById(network.toUpperCase(), txid);
       
       if (_pendingTxFromCache) {
         api.log(`${network} ${txid} get from pending txs cache`, 'spv.cache.transaction.pending');
         resolve(_pendingTxFromCache);
       } else {
-        api.log(`${network.toUpperCase()} dpow confs spv: ${dpowCoins.indexOf(network.toUpperCase()) > -1 ? true : false}`, 'spv.dpow.confs');
+        api.log(`${network.toUpperCase()} dpow confs spv: ${api.dpowCoins.indexOf(network.toUpperCase()) > -1 ? true : false}`, 'spv.dpow.confs');
         
-        if (!api.electrumCache[network].tx[txid] ||
-            !api.electrumCache[network].verboseTx[txid] ||
-            (api.electrumCache[network].verboseTx[txid] && api.electrumCache[network].verboseTx[txid].hasOwnProperty('confirmations') && api.electrumCache[network].verboseTx[txid].hasOwnProperty('rawconfirmations') && api.electrumCache[network].verboseTx[txid].confirmations < 2) ||
-            (!api.electrumCache[network].verboseTx[txid].hasOwnProperty('confirmations') || !api.electrumCache[network].verboseTx[txid].hasOwnProperty('rawconfirmations'))) {
-          api.log(`electrum raw input tx ${txid}`, 'spv.cache');
+        if (api.electrum.coinData[network.toLowerCase()].nspv) {
+          if (!api.electrumCache[network].tx[txid]) {
+            const nspvWrapper = api.nspvWrapper(network.toLowerCase());
+            api.log(`nspv raw input tx ${txid}`, 'spv.cache');
 
-          if (dpowCoins.indexOf(network.toUpperCase()) > -1) {
-            api.log(`${network.toUpperCase()} request dpow data update`, 'spv.dpow.confs');
-          }
-          
-          ecl.blockchainTransactionGet(txid, dpowCoins.indexOf(network.toUpperCase()) > -1 ? true : false)
-          .then((_rawtxJSON) => {
-            if (_rawtxJSON.hasOwnProperty('hex')) {
-              api.electrumCache[network].tx[txid] = _rawtxJSON.hex;
-              api.electrumCache[network].verboseTx[txid] = _rawtxJSON;
-              delete api.electrumCache[network].verboseTx[txid].hex;
-            } else {
-              api.electrumCache[network].tx[txid] = _rawtxJSON;
-            }
+            nspvWrapper.blockchainTransactionGet(txid, true)
+            .then((nspvGetTx) => {
+              if (nspvGetTx &&
+                  nspvGetTx.hasOwnProperty('hex')) {
+                api.electrumCache[network].tx[txid] = nspvGetTx.hex;
+                resolve(api.electrumCache[network].tx[txid]);
+              } else {
+                api.log(`nspv unable to get raw input tx ${txid}`, 'spv.cache');
+                resolve();
+              }
+            });
+          } else {
+            api.log(`electrum cached raw input tx ${txid}`, 'spv.cache');
             resolve(api.electrumCache[network].tx[txid]);
-          });
-        } else {
-          api.log(`electrum cached raw input tx ${txid}`, 'spv.cache');
-          resolve(api.electrumCache[network].tx[txid]);
+          }
+        } else {        
+          if (!api.electrumCache[network].tx[txid] ||
+              !api.electrumCache[network].verboseTx[txid] ||
+              (api.electrumCache[network].verboseTx[txid] && api.electrumCache[network].verboseTx[txid].hasOwnProperty('confirmations') && api.electrumCache[network].verboseTx[txid].hasOwnProperty('rawconfirmations') && api.electrumCache[network].verboseTx[txid].confirmations < 2) ||
+              (!api.electrumCache[network].verboseTx[txid].hasOwnProperty('confirmations') || !api.electrumCache[network].verboseTx[txid].hasOwnProperty('rawconfirmations'))) {
+            api.log(`electrum raw input tx ${txid}`, 'spv.cache');
+
+            if (api.dpowCoins.indexOf(network.toUpperCase()) > -1) {
+              api.log(`${network.toUpperCase()} request dpow data update`, 'spv.dpow.confs');
+            }
+            
+            ecl.blockchainTransactionGet(txid, api.dpowCoins.indexOf(network.toUpperCase()) > -1 ? true : false)
+            .then((_rawtxJSON) => {
+              if (_rawtxJSON.hasOwnProperty('hex')) {
+                api.electrumCache[network].tx[txid] = _rawtxJSON.hex;
+                api.electrumCache[network].verboseTx[txid] = _rawtxJSON;
+                delete api.electrumCache[network].verboseTx[txid].hex;
+              } else {
+                api.electrumCache[network].tx[txid] = _rawtxJSON;
+              }
+              resolve(api.electrumCache[network].tx[txid]);
+            });
+          } else {
+            api.log(`electrum cached raw input tx ${txid}`, 'spv.cache');
+            resolve(api.electrumCache[network].tx[txid]);
+          }
         }
       }
     });
@@ -251,19 +273,52 @@ module.exports = (api) => {
             !Object.keys(api.electrumCache[network].blockHeader[height]).length) {
           api.log(`electrum raw block ${height}`, 'spv.cache');
 
-          ecl.blockchainBlockGetHeader(height)
-          .then((_rawtxJSON) => {
-            if (typeof _rawtxJSON === 'string') {            
-              _rawtxJSON = parseBlock(_rawtxJSON, btcnetworks[network] || btcnetworks.kmd);
+          if (api.electrum.coinData[network.toLowerCase()].nspv) {
+            api.nspvRequest(
+              network.toLowerCase(),
+              'getinfo',
+              [height]
+            )
+            .then((nspvGetinfo) => {
+              api.log(JSON.stringify(nspvGetinfo), 'spv.cache.nspv.block');
 
-              if (_rawtxJSON.merkleRoot) {
-                _rawtxJSON.merkle_root = electrumMerkleRoot(_rawtxJSON);
+              if (nspvGetinfo &&
+                  nspvGetinfo.header) {
+                api.electrumCache[network].blockHeader[height] = {
+                  timestamp: nspvGetinfo.header.nTime,
+                  timereceived: nspvGetinfo.header.nTime,
+                  merkleRoot: nspvGetinfo.header.hashMerkleRoot,
+                  merkle_root: nspvGetinfo.header.hashMerkleRoot,
+                  prevHash: nspvGetinfo.header.hashPrevBlock,
+                  bits: nspvGetinfo.header.nBits,
+                };
+                resolve({
+                  timestamp: nspvGetinfo.header.nTime,
+                  timereceived: nspvGetinfo.header.nTime,
+                  merkleRoot: nspvGetinfo.header.hashMerkleRoot,
+                  merkle_root: nspvGetinfo.header.hashMerkleRoot,
+                  prevHash: nspvGetinfo.header.hashPrevBlock,
+                  bits: nspvGetinfo.header.nBits,
+                });
+              } else {
+                resolve();
               }
-            }
-            api.electrumCache[network].blockHeader[height] = _rawtxJSON;
-            // api.log(api.electrumCache[network].blockHeader[height], 'spv.cache');
-            resolve(_rawtxJSON);
-          });
+            });
+          } else {
+            ecl.blockchainBlockGetHeader(height)
+            .then((_rawtxJSON) => {
+              if (typeof _rawtxJSON === 'string') {            
+                _rawtxJSON = parseBlock(_rawtxJSON, btcnetworks[network] || btcnetworks.kmd);
+
+                if (_rawtxJSON.merkleRoot) {
+                  _rawtxJSON.merkle_root = electrumMerkleRoot(_rawtxJSON);
+                }
+              }
+              api.electrumCache[network].blockHeader[height] = _rawtxJSON;
+              // api.log(api.electrumCache[network].blockHeader[height], 'spv.cache');
+              resolve(_rawtxJSON);
+            });
+          }
         } else {
           api.log(`electrum cached raw block ${height}`, 'spv.cache');
           // api.log(api.electrumCache[network].blockHeader[height], 'spv.cache');

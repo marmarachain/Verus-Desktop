@@ -14,18 +14,18 @@ module.exports = (api) => {
     }
   }
   
-  api.native.get_addresses = (coin, token, includePrivate) => {
+  api.native.get_addresses = (coin, includePrivate) => {
     return new Promise((resolve, reject) => {
       let addressPromises = [
-        api.native.callDaemon(coin, "listaddressgroupings", [], token),
-        api.native.callDaemon(coin, "getaddressesbyaccount", [""], token),
-        api.native.callDaemon(coin, "z_gettotalbalance", [], token),
-        api.native.callDaemon(coin, "getwalletinfo", [], token)
+        api.native.callDaemon(coin, "listaddressgroupings", []),
+        api.native.callDaemon(coin, "getaddressesbyaccount", [""]),
+        api.native.callDaemon(coin, "z_gettotalbalance", []),
+        api.native.callDaemon(coin, "getwalletinfo", [])
       ];
 
       if (includePrivate) {
         addressPromises.push(
-          api.native.callDaemon(coin, "z_listaddresses", [], token)
+          api.native.callDaemon(coin, "z_listaddresses", [])
         );
       }
 
@@ -45,7 +45,7 @@ module.exports = (api) => {
           const walletInfo = jsonResults[3];
           const { txcount } = walletInfo
           const privateAddrListResult =
-            jsonResults.length > 3 ? jsonResults[4] : [];
+            jsonResults.length > 4 ? jsonResults[4] : [];
 
           // Compile public addresses from listaddressgroupings
           addressGroupings.forEach(addressGrouping => {
@@ -124,7 +124,7 @@ module.exports = (api) => {
                   (!isZ && tBalanceSeen < totalTBalance)
                 ) {
                   balanceObj.native = Number(
-                    await api.native.get_addr_balance(coin, token, address, true, txcount, Number(totalBalance.total))
+                    await api.native.get_addr_balance(coin, address, true, txcount, Number(totalBalance.total))
                   );
 
                   isZ
@@ -163,12 +163,12 @@ module.exports = (api) => {
     });
   };
 
-  api.native.validate_address = (coin, token, address) => {
+  api.native.validate_address = (coin, address) => {
     let isZAaddr = false
     if (address[0] === 'z') isZAaddr = true
 
     return new Promise((resolve, reject) => {
-      api.native.callDaemon(coin, isZAaddr ? 'z_validateaddress' : 'validateaddress', [address], token)
+      api.native.callDaemon(coin, isZAaddr ? 'z_validateaddress' : 'validateaddress', [address])
       .then((jsonResult) => {
         resolve(jsonResult)
       })
@@ -178,12 +178,12 @@ module.exports = (api) => {
     })
   }
 
-  api.native.get_privkey = (coin, token, address) => {
+  api.native.get_privkey = (coin, address) => {
     let isZAaddr = false
     if (address[0] === 'z') isZAaddr = true
 
     return new Promise((resolve, reject) => {
-      api.native.callDaemon(coin, isZAaddr ? 'z_exportkey' : 'dumpprivkey', [address], token)
+      api.native.callDaemon(coin, isZAaddr ? 'z_exportkey' : 'dumpprivkey', [address])
       .then((jsonResult) => {
         resolve(jsonResult)
       })
@@ -193,9 +193,9 @@ module.exports = (api) => {
     })
   }
 
-  api.native.get_newaddress = (coin, token, zAddress) => {
+  api.native.get_newaddress = (coin, zAddress) => {
     return new Promise((resolve, reject) => {
-      api.native.callDaemon(coin, zAddress ? 'z_getnewaddress' : 'getnewaddress', [], token)
+      api.native.callDaemon(coin, zAddress ? 'z_getnewaddress' : 'getnewaddress', [])
       .then((jsonResult) => {
         resolve(jsonResult)
       })
@@ -205,19 +205,18 @@ module.exports = (api) => {
     })
   }
 
-  api.post('/native/get_newaddress', (req, res, next) => {
-    const token = req.body.token;
+  api.setPost('/native/get_newaddress', (req, res, next) => {
     const zAddress = req.body.zAddress;
     const coin = req.body.chainTicker;
 
-    api.native.get_newaddress(coin, token, zAddress)
+    api.native.get_newaddress(coin, zAddress)
     .then((newAddr) => {
       const retObj = {
         msg: 'success',
         result: newAddr,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
     .catch(error => {
       const retObj = {
@@ -225,23 +224,22 @@ module.exports = (api) => {
         result: error.message,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
   });
 
-  api.post('/native/get_addresses', (req, res, next) => {
-    const token = req.body.token;
+  api.setPost('/native/get_addresses', (req, res, next) => {
     const includePrivate = req.body.includePrivate;
     const coin = req.body.chainTicker;
 
-    api.native.get_addresses(coin, token, includePrivate)
+    api.native.get_addresses(coin, includePrivate)
     .then((addresses) => {
       const retObj = {
         msg: 'success',
         result: addresses,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
     .catch(error => {
       const retObj = {
@@ -249,16 +247,15 @@ module.exports = (api) => {
         result: error.message,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
   });
 
-  api.post('/native/get_pubkey', (req, res, next) => {
-    const token = req.body.token;
+  api.setPost('/native/get_pubkey', (req, res, next) => {
     const coin = req.body.chainTicker;
     const address = req.body.address
 
-    api.native.validate_address(coin, token, address)
+    api.native.validate_address(coin, address)
     .then((validation) => {
       if (!validation.pubkey && !validation.scriptPubKey) throw new Error(`No pubkey found for ${address}`)
 
@@ -267,7 +264,7 @@ module.exports = (api) => {
         result: validation.pubkey ? validation.pubkey : validation.scriptPubkey,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
     .catch(error => {
       const retObj = {
@@ -275,16 +272,15 @@ module.exports = (api) => {
         result: error.message,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
   });
 
-  api.post('/native/get_privkey', (req, res, next) => {
-    const token = req.body.token;
+  api.setPost('/native/get_privkey', (req, res, next) => {
     const coin = req.body.chainTicker;
     const address = req.body.address
 
-    api.native.get_privkey(coin, token, address)
+    api.native.get_privkey(coin, address)
     .then((privkey) => {
       if (!privkey) throw new Error(`No privkey found for ${address}`)
 
@@ -293,7 +289,7 @@ module.exports = (api) => {
         result: privkey,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
     .catch(error => {
       const retObj = {
@@ -301,7 +297,7 @@ module.exports = (api) => {
         result: error.message,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
   });
 

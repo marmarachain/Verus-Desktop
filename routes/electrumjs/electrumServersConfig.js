@@ -12,7 +12,7 @@ const disableCoins = [
   'put', // needs kv edit
   'ecn', // needs kv edit
   'ac',
-  'btcp', // sort out kv
+  //'btcp', // sort out kv
   'blk',
   // untested coins
   'smart',
@@ -22,7 +22,6 @@ const disableCoins = [
   'xvc',
   'nro',
   'uno',
-  'xzc',
   'bela',
   'ldcn',
   'hnc',

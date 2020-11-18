@@ -163,7 +163,7 @@ module.exports = (shepherd) => {
       result: '',
     };
 
-    res.end(JSON.stringify(successObj));
+    res.send(JSON.stringify(successObj));
   });
 
   shepherd.get('/electrum/kv/test/decode', (req, res, next) => {
@@ -175,7 +175,7 @@ module.exports = (shepherd) => {
       result: decodedKv,
     };
 
-    res.end(JSON.stringify(successObj));
+    res.send(JSON.stringify(successObj));
   });
 
   return shepherd;

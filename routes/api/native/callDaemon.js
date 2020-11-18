@@ -10,13 +10,8 @@ const {
 const RpcError = require('../utils/rpc/rpcError')
 
 module.exports = (api) => {
-  api.native.callDaemon = (coin, cmd, params, token) => {   
-    //TODO: DELETE
-    //console.log(coin)
-    //console.log(cmd)
-    //console.log(params)
-
-    return new Promise((resolve, reject) => {
+  api.native.callDaemon = (coin, cmd, params) => {   
+    return new Promise(async (resolve, reject) => {
       let _payload;
   
       if (params) {
@@ -26,7 +21,6 @@ module.exports = (api) => {
           cmd: cmd,
           params: params,
           rpc2cli: false, // Deprecated
-          token: token,
         };
       } else {
         _payload = {
@@ -34,43 +28,35 @@ module.exports = (api) => {
           chain: coin,
           cmd: cmd,
           rpc2cli: false, // Deprecated
-          token: token,
         };
       }
-  
-      const options = {
-        url: `http://127.0.0.1:${api.appConfig.general.main.agamaPort}/api/cli`,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ payload: _payload }),
-        timeout: 120000,
-      };
-  
-      request(options, (error, response, body) => {
-        const rpcJsonParsed = api.native.convertRpcJson(body)
+
+      try {
+        const rpcJsonParsed = api.native.convertRpcJson(await api.sendToCli(_payload))
 
         if (rpcJsonParsed.msg === 'success') resolve(rpcJsonParsed.result);
         else reject(new RpcError(rpcJsonParsed.code, rpcJsonParsed.result))
-      });
+      } catch(e) {
+        api.log("RPC Error", "callDaemon")
+        api.log(e, "callDaemon")
+        reject(new RpcError(-1, "RPC Error"))
+      }
     });
   }
 
-  api.post('/native/call_daemon', (req, res, next) => {
-    const token = req.body.token;
+  api.setPost('/native/call_daemon', (req, res, next) => {
     const params = req.body.params;
     const coin = req.body.chainTicker;
     const cmd = req.body.cmd;
 
-    api.native.callDaemon(coin, cmd, params, token)
+    api.native.callDaemon(coin, cmd, params)
     .then((rpcRes) => {
       const retObj = {
         msg: 'success',
         result: rpcRes,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
     .catch(error => {
       const retObj = {
@@ -78,7 +64,7 @@ module.exports = (api) => {
         result: error.message,
       };
   
-      res.end(JSON.stringify(retObj));  
+      res.send(JSON.stringify(retObj));  
     })
   });
 

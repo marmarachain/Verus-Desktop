@@ -5,14 +5,12 @@ module.exports = (api) => {
    * Signs a message given the message, and an identity/address currently in the wallet
    * 
    * @param {String} coin The chainTicker of the coin to make the call on
-   * @param {String} token The current API token from the GUI
    * @param {String} address The identity or address to sign the message
    * @param {String} message The message to verify
    * @param {String} cursig The current signature if multisig
    */
   api.native.sign_message = (
     coin,
-    token,
     address,
     message,
     cursig = ""
@@ -26,8 +24,7 @@ module.exports = (api) => {
             address,
             message,
             cursig
-          ],
-          token
+          ]
         )
       .then(resultObj => {
         resolve(resultObj)
@@ -42,14 +39,12 @@ module.exports = (api) => {
    * Signs a file given the file, and an identity/address currently in the wallet
    * 
    * @param {String} coin The chainTicker of the coin to make the call on
-   * @param {String} token The current API token from the GUI
    * @param {String} address The identity or address to sign the file
    * @param {String} file The file to verify
    * @param {String} cursig The current signature if multisig
    */
   api.native.sign_file = (
     coin,
-    token,
     address,
     file,
     cursig = ""
@@ -63,8 +58,7 @@ module.exports = (api) => {
             address,
             file,
             cursig
-          ],
-          token
+          ]
         )
       .then(resultObj => {
         resolve(resultObj)
@@ -75,10 +69,9 @@ module.exports = (api) => {
     });
   };
 
-  api.post('/native/sign_message', (req, res, next) => {
+  api.setPost('/native/sign_message', (req, res, next) => {
     const {
       chainTicker,
-      token,
       address,
       data,
       cursig
@@ -87,7 +80,6 @@ module.exports = (api) => {
     api.native
       .sign_message(
         chainTicker,
-        token,
         address,
         data,
         cursig
@@ -98,7 +90,7 @@ module.exports = (api) => {
           result: resultObj
         };
 
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       })
       .catch(error => {
         const retObj = {
@@ -106,14 +98,13 @@ module.exports = (api) => {
           result: error.message
         };
 
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       });
   });
 
-  api.post('/native/sign_file', (req, res, next) => {
+  api.setPost('/native/sign_file', (req, res, next) => {
     const {
       chainTicker,
-      token,
       address,
       data,
       cursig
@@ -122,7 +113,6 @@ module.exports = (api) => {
     api.native
       .sign_file(
         chainTicker,
-        token,
         address,
         data,
         cursig
@@ -133,7 +123,7 @@ module.exports = (api) => {
           result: resultObj
         };
 
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       })
       .catch(error => {
         const retObj = {
@@ -141,7 +131,7 @@ module.exports = (api) => {
           result: error.message
         };
 
-        res.end(JSON.stringify(retObj));
+        res.send(JSON.stringify(retObj));
       });
   });
 

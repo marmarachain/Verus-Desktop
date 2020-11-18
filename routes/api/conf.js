@@ -38,13 +38,13 @@ module.exports = (api) => {
     }*/
 
     //If the coin uses verusd as it's daemon and isn't Verus, we assume it's
-    //directory will lie in PBaaS territory, outside of the kmdDir
+    //directory will lie in PBaaS territory, outside of the kmdDataDir
     if (api.appConfig.general.main.reservedChains.indexOf(flock) === -1) {
       if (api.appConfig.general.main.pbaasTestmode) {
-        pbaasCoinDir = path.normalize(path.join(api.verusTestDir, `/PBAAS/${flock}`));
+        pbaasCoinDir = path.normalize(path.join(api.paths.verusTestDir, `/PBAAS/${flock}`));
         api.log(`Assuming PBAAS chain in test mode, using conf path as ${pbaasCoinDir}`, 'native.confd');
       } else {
-        pbaasCoinDir = path.normalize(path.join(api.verusDir, `/PBAAS/${flock}`));
+        pbaasCoinDir = path.normalize(path.join(api.paths.verusDir, `/PBAAS/${flock}`));
         api.log(`Assuming PBAAS chain, using conf path as ${pbaasCoinDir}`, 'native.confd');
       }
 
@@ -53,7 +53,7 @@ module.exports = (api) => {
 
     switch (flock) {
       case 'komodod':
-        DaemonConfPath = api.kmdDir;
+        DaemonConfPath = api.paths.kmdDataDir;
         if (_platform === 'win32') {
           DaemonConfPath = path.normalize(DaemonConfPath);
           api.log('===>>> API OUTPUT ===>>>', 'native.confd');
@@ -66,7 +66,7 @@ module.exports = (api) => {
         }
         break;
       case 'chipsd':
-        DaemonConfPath = api.chipsDir;
+        DaemonConfPath = api.paths.chipsDir;
         if (_platform === 'win32') {
           DaemonConfPath = path.normalize(DaemonConfPath);
         }
@@ -76,7 +76,7 @@ module.exports = (api) => {
       //  DaemonConfPath = _platform === 'win32' ? path.normalize(`${api.coindRootDir}/${coind.toLowerCase()}`) : `${api.coindRootDir}/${coind.toLowerCase()}`;
       //  break;
       default:
-        DaemonConfPath = `${api.kmdDir}/${flock}`;
+        DaemonConfPath = `${api.paths.kmdDataDir}/${flock}`;
         if (_platform === 'win32') {
           DaemonConfPath = path.normalize(DaemonConfPath);
         }
@@ -111,9 +111,9 @@ module.exports = (api) => {
     switch (flock) {
       case 'verusd':
         if (coind && api.appConfig.general.main.reservedChains.indexOf(coind) === -1) {
-          DaemonConfPath = `${api.verusDir}/PBAAS/${coind}.conf`;
+          DaemonConfPath = `${api.paths.verusDir}/PBAAS/${coind}.conf`;
         } else {
-          DaemonConfPath = `${api.vrscDir}/VRSC.conf`;
+          DaemonConfPath = `${api.paths.vrscDataDir}/VRSC.conf`;
         }
         
 
@@ -122,7 +122,7 @@ module.exports = (api) => {
         }
         break;
       case 'komodod':
-        DaemonConfPath = `${api.kmdDir}/komodo.conf`;
+        DaemonConfPath = `${api.paths.kmdDataDir}/komodo.conf`;
 
         if (_platform === 'win32') {
           DaemonConfPath = path.normalize(DaemonConfPath);
@@ -136,7 +136,7 @@ module.exports = (api) => {
         }
         break;
       case 'chipsd':
-        DaemonConfPath = `${api.chipsDir}/chips.conf`;
+        DaemonConfPath = `${api.paths.chipsDir}/chips.conf`;
 
         if (_platform === 'win32') {
           DaemonConfPath = path.normalize(DaemonConfPath);
@@ -150,7 +150,7 @@ module.exports = (api) => {
         }
         break;
       default:
-        DaemonConfPath = `${api.kmdDir}/${flock}/${flock}.conf`;
+        DaemonConfPath = `${api.paths.kmdDataDir}/${flock}/${flock}.conf`;
 
         if (_platform === 'win32') {
           DaemonConfPath = path.normalize(DaemonConfPath);
@@ -405,80 +405,62 @@ module.exports = (api) => {
   /*
    *  type: POST
    */
-  api.post('/setconf', (req, res) => {
-    if (api.checkToken(req.body.token)) {
-      const _body = req.body;
+  api.setPost('/setconf', (req, res) => {
+    const _body = req.body;
 
-      api.log('setconf req.body =>', 'native.confd');
-      api.log(_body, 'native.confd');
+    api.log('setconf req.body =>', 'native.confd');
+    api.log(_body, 'native.confd');
 
-      if (os.platform() === 'win32' &&
-          _body.chain == 'komodod') {
-        setkomodoconf = spawn(path.join(__dirname, '../assets/bin/win64/genkmdconf.bat'));
-      } else {
-        api.setConf(_body.chain);
-      }
-
-      const retObj = {
-        msg: 'success',
-        result: 'result',
-      };
-
-      res.end(JSON.stringify(retObj));
+    if (os.platform() === 'win32' &&
+        _body.chain == 'komodod') {
+      setkomodoconf = spawn(path.join(__dirname, '../assets/bin/win64/genkmdconf.bat'));
     } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
+      api.setConf(_body.chain);
     }
+
+    const retObj = {
+      msg: 'success',
+      result: 'result',
+    };
+
+    res.send(JSON.stringify(retObj));
   });
 
   /*
    *  type: POST
    */
-  api.post('/getconf', (req, res) => {
+  api.setPost('/getconf', (req, res) => {
     const _body = req.body;
 
-    if (api.checkToken(_body.token)) {
-      api.log('getconf req.body =>', 'native.confd');
-      api.log(_body, 'native.confd');
+    api.log('getconf req.body =>', 'native.confd');
+    api.log(_body, 'native.confd');
 
-      const confpath = getConf(_body.chain, _body.coind);
+    const confpath = getConf(_body.chain, _body.coind);
 
-      api.log(`getconf path is: ${confpath}`, 'native.confd');
-      api.writeLog(`getconf path is: ${confpath}`, 'native.confd');
+    api.log(`getconf path is: ${confpath}`, 'native.confd');
+    api.writeLog(`getconf path is: ${confpath}`, 'native.confd');
 
-      const retObj = {
-        msg: 'success',
-        result: confpath,
-      };
+    const retObj = {
+      msg: 'success',
+      result: confpath,
+    };
 
-      res.end(JSON.stringify(retObj));
-    } else {
-      const retObj = {
-        msg: 'error',
-        result: 'unauthorized access',
-      };
-
-      res.end(JSON.stringify(retObj));
-    }
+    res.send(JSON.stringify(retObj));
   });
 
   api.setConfKMD = (isChips) => {
     // check if kmd conf exists
-    _fs.access(isChips ? `${api.chipsDir}/chips.conf` : `${api.kmdDir}/komodo.conf`, fs.constants.R_OK, (err) => {
+    _fs.access(isChips ? `${api.paths.chipsDir}/chips.conf` : `${api.paths.kmdDataDir}/komodo.conf`, fs.constants.R_OK, (err) => {
       if (err) {
         api.log(isChips ? 'creating chips conf' : 'creating komodo conf', 'native.confd');
-        api.writeLog(isChips ? `creating chips conf in ${api.chipsDir}/chips.conf` : `creating komodo conf in ${api.kmdDir}/komodo.conf`);
+        api.writeLog(isChips ? `creating chips conf in ${api.paths.chipsDir}/chips.conf` : `creating komodo conf in ${api.paths.kmdDataDir}/komodo.conf`);
         setConf(isChips ? 'chipsd' : 'komodod');
       } else {
-        const _confSize = fs.lstatSync(isChips ? `${api.chipsDir}/chips.conf` : `${api.kmdDir}/komodo.conf`);
+        const _confSize = fs.lstatSync(isChips ? `${api.paths.chipsDir}/chips.conf` : `${api.paths.kmdDataDir}/komodo.conf`);
 
         if (_confSize.size === 0) {
           api.log(isChips ? 'err: chips conf file is empty, creating chips conf' : 'err: komodo conf file is empty, creating komodo conf', 'native.confd');
-          api.writeLog(isChips ? `creating chips conf in ${api.chipsDir}/chips.conf` : `creating komodo conf in ${api.kmdDir}/komodo.conf`);
+          api.writeLog(isChips ? `creating chips conf in ${api.paths.chipsDir}/chips.conf` : `creating komodo conf in ${api.paths.kmdDataDir}/komodo.conf`);
           setConf(isChips ? 'chipsd' : 'komodod');
         } else {
           api.writeLog(isChips ? 'chips conf exists' : 'komodo conf exists');

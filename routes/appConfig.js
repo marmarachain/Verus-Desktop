@@ -1,5 +1,4 @@
 const coinDataTranslated = require('./coinDataTranslated')
-const fiatList = require('./fiatList');
 const zcashParamsSources = require('./zcashParamsSources')
 
 let zCoins = {}
@@ -20,6 +19,14 @@ const coinObjArray = coinDataTranslated.getSimpleCoinArray().map(simpleCoinObj =
 
 const appConfig = {
   config: {
+    display: {
+      mining: {
+        wallet: {
+          openMiningBooklets: [{}],
+          openStakingBooklets: [{}],
+        }
+      }
+    },
     general: {
       main: {
         host: "127.0.0.1",
@@ -46,12 +53,13 @@ const appConfig = {
           .concat(["KOMODO", "zcashd", "komodod", "chipsd"]),
         pbaasChains: [],
         pbaasTestmode: true,
-        enableVrsctest: false
+        enableVrsctest: false,
+        alwaysPromptUpdates: true,
+        encryptApi: false
       },
       electrum: {
         maxVinParseLimit: 120,
         cache: false,
-        proxy: false,
         socketTimeout: 10000,
         customServers: false,
         maxTxListLength: 10,
@@ -69,8 +77,8 @@ const appConfig = {
         zcashParamsSrc: "z.cash",
         includeP2shAddrs: false,
         includeEmptyChangeAddrs: false,
-        nativeCacheMbLimit: 30
-        //TODO: Make update intervals configurable
+        nativeCacheMbLimit: 30,
+        filterGenerateTransactions: true
       }
     },
     coin: {
@@ -117,14 +125,14 @@ const appConfig = {
           type: "checkbox",
           displayName: "Enable VRSCTEST",
           info: "Enables the Verus Testnet as a coin to add."
-        }
+        },
+        alwaysPromptUpdates: {
+          type: "checkbox",
+          displayName: "Notfy me about all app updates",
+          info: "Enables update notifications on app start for all updates, including non-mandatory."
+        },
       },
       electrum: {
-        proxy: {
-          type: "checkbox",
-          displayName: "Use proxy server",
-          info: "Use a proxy server to connect to electrum."
-        },
         socketTimeout: {
           type: "number_input",
           displayName: "Socket Timeout",
@@ -170,26 +178,16 @@ const appConfig = {
           displayName: "Include Empty Change Addresses",
           info:
             "Include automatically generated change adresses in your address list, even if they're empty."
-        }
+        },
+        filterGenerateTransactions: {
+          type: 'checkbox',
+          displayName: 'Separate mining/staking transactions',
+          info: 'Filter all mining/staking related transactions out of the main wallet tab, and only show them under the mining tab.',
+        },
       }
     },
     coin: {
       native: {
-        /*includePrivateAddrs: {
-          type: 'checkbox',
-          displayName: 'Fetch private addresses',
-          info: 'Fetch private addresses when fetching addresses.',
-        },
-        includePrivateBalances: {
-          type: 'checkbox',
-          displayName: 'Fetch private balances',
-          info: 'Fetch private balances when fetching balances.',
-        },
-        includePrivateTransactions: {
-          type: 'checkbox',
-          displayName: 'Fetch private transactions',
-          info: 'Fetch private transactions when fetching transactions.',
-        },*/
         stakeGuard: {
           type: "text_input",
           displayName: "StakeGuard address",
